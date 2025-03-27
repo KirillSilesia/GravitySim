@@ -5,6 +5,19 @@
 #include <cmath>
 #include <vector>
 
+float zoomLevel = 45.0f; // Initial zoom level
+const float G = 6.67430e-11f; // Gravitational constant
+float deltaTime = 0.1f; // Time step
+// Variables to track mouse movement and camera rotation
+double lastX = 320.0, lastY = 240.0; // Initial mouse position (center of window)
+double lastRightX = 320.0, lastRightY = 240.0; // Right mouse position for dragging
+float pitch = 0.0f, yaw = -90.0f;     // Camera rotation angles
+bool isDragging = false;               // Flag for left mouse button hold
+bool isRightDragging = false; // Flag for right mouse button hold
+float cameraX = 0.0f, cameraY = 0.0f, cameraZ = -15.0f; // Camera position
+
+
+
 // Structure to represent celestial bodies
 struct CelestialBody {
     float x, y, z;  // Position
@@ -15,10 +28,6 @@ struct CelestialBody {
     float initialVx, initialVz;
     bool isStar;
 };
-
-float zoomLevel = 45.0f; // Initial zoom level
-const float G = 6.67430e-11f; // Gravitational constant
-float deltaTime = 0.1f; // Time step
 
 // Function to draw a celestial body (sphere)
 void drawSphere(float radius, float x, float y, float z, float* color) {
@@ -96,49 +105,70 @@ void drawGravityGrid(int gridSize, float lineSpacing, CelestialBody* bodies, int
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
     float zoomSpeed = 5.0f;
     zoomLevel -= yoffset * zoomSpeed;  // Adjust the zoom level based on scroll
-    if (zoomLevel < 10.0f) zoomLevel = 10.0f;  // Set a minimum zoom level
-    if (zoomLevel > 90.0f) zoomLevel = 90.0f;  // Set a maximum zoom level
+    //if (zoomLevel < 10.0f) zoomLevel = 10.0f;  // Set a minimum zoom level
+    //if (zoomLevel > 90.0f) zoomLevel = 90.0f;  // Set a maximum zoom level
 }
 
-// Variables to track mouse movement and camera rotation
-double lastX = 320.0, lastY = 240.0; // Initial mouse position (center of window)
-float pitch = 0.0f, yaw = -90.0f;     // Camera rotation angles
-bool isDragging = false;               // Flag for left mouse button hold
 
-// Function to handle mouse movement (camera rotation)
+// Function to handle mouse movement and dragging for both left and right mouse buttons
 void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
-    if (!isDragging) return;  // Only update rotation when dragging
+    // Get the current state of the mouse buttons (whether they are pressed or released)
+    int leftButtonState = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+    int rightButtonState = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT);
 
-    float xOffset = xpos - lastX;  // Calculate change in X position
-    float yOffset = lastY - ypos;  // Calculate change in Y position (invert Y to match typical 3D controls)
-    lastX = xpos;
-    lastY = ypos;
+    if (leftButtonState == GLFW_PRESS) {
+        // Left mouse button dragging (camera rotation)
+        float xOffset = xpos - lastX;  // Change in X position
+        float yOffset = lastY - ypos;  // Change in Y position (invert Y-axis for typical 3D controls)
+        lastX = xpos;
+        lastY = ypos;
 
-    float sensitivity = 0.1f;  // Rotation sensitivity
-    xOffset *= sensitivity;
-    yOffset *= sensitivity;
+        float sensitivity = 0.1f;  // Sensitivity of rotation
+        xOffset *= sensitivity;
+        yOffset *= sensitivity;
 
-    // Update camera angles (yaw and pitch)
-    yaw += xOffset;
-    pitch += yOffset;
+        // Update camera rotation angles
+        yaw += xOffset;
+        pitch += yOffset;
 
-    // Constrain pitch to avoid gimbal lock
-    if (pitch > 89.0f) pitch = 89.0f;
-    if (pitch < -89.0f) pitch = -89.0f;
+        // Constrain pitch to avoid gimbal lock
+        if (pitch > 89.0f) pitch = 89.0f;
+        if (pitch < -89.0f) pitch = -89.0f;
+    }
+
+    if (rightButtonState == GLFW_PRESS) {
+        // Right mouse button dragging (camera translation)
+        float xOffset = xpos - lastRightX;  // Change in X position
+        float yOffset = lastRightY - ypos;  // Change in Y position (invert Y-axis)
+        lastRightX = xpos;
+        lastRightY = ypos;
+
+        float sensitivity = 0.05f;  // Sensitivity of translation
+        cameraX -= xOffset * sensitivity;  // Horizontal movement (move camera left or right)
+        cameraY += yOffset * sensitivity;  // Vertical movement (move camera up or down)
+    }
 }
 
-// Function to handle mouse button events
+
+
+
+// Function to handle mouse button press and release events
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     if (button == GLFW_MOUSE_BUTTON_LEFT) {
         if (action == GLFW_PRESS) {
-            isDragging = true;
-            glfwGetCursorPos(window, &lastX, &lastY);
+            glfwGetCursorPos(window, &lastX, &lastY);  // Store initial position for rotation
         }
-        if (action == GLFW_RELEASE) {
-            isDragging = false;
+    }
+
+    if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+        if (action == GLFW_PRESS) {
+            glfwGetCursorPos(window, &lastRightX, &lastRightY);  // Store initial position for translation
         }
     }
 }
+
+
+
 
 // Function to handle window resizing
 void reshape(GLFWwindow* window, int width, int height) {
@@ -231,33 +261,24 @@ int main(void) {
 
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, reshape);
-
-    // Test objects (celestial bodies)
-    CelestialBody star1 = { 0.0f, 0.0f, 0.0f, 5.0f, 100.0e10f, {1.0f, 1.0f, 0.0f}, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, true };
-CelestialBody star2 = { 10.0f, 0.0f, 0.0f, 0.5f, 2.0e10f, {1.0f, 0.0f, 0.0f}, -0.2f, 0.0f, 0.1f, 0.0f, 0.0f, true };
-CelestialBody planet = { 5.0f, 0.0f, 0.0f, 0.3f, 5.0e9f, {0.0f, 0.0f, 1.0f}, 0.0f, 0.0f, 0.0f, false };
-
-
-    CelestialBody bodies[] = { star1, star2, planet };
-
-    float cameraX = 0.0f, cameraY = 0.0f, cameraZ = -15.0f;
-
     glfwSetScrollCallback(window, scroll_callback);
-
-    // Enable depth testing for proper 3D rendering
-    glEnable(GL_DEPTH_TEST);
-
+    glfwSetCursorPosCallback(window, mouse_callback);  // For rotation
+    glfwSetMouseButtonCallback(window, mouse_button_callback);  // For leftt dragging
+    glEnable(GL_DEPTH_TEST); // Enable depth testing for proper 3D rendering
     reshape(window, 640, 480);
-
-    // Set the perspective projection
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     gluPerspective(45.0, 640.0 / 480.0, 0.1, 100.0);
     glMatrixMode(GL_MODELVIEW);
 
-    // Set GLFW mouse callback functions
-    glfwSetCursorPosCallback(window, mouse_callback);
-    glfwSetMouseButtonCallback(window, mouse_button_callback);
+    // Test objects (celestial bodies)
+    CelestialBody star1 = { 0.0f, 0.0f, 0.0f, 5.0f, 100.0e10f, {1.0f, 1.0f, 0.0f}, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, true };
+    CelestialBody star2 = { 10.0f, 0.0f, 0.0f, 0.5f, 2.0e10f, {1.0f, 0.0f, 0.0f}, -0.2f, 0.0f, 0.1f, 0.0f, 0.0f, true };
+    CelestialBody planet = { 5.0f, 0.0f, 0.0f, 0.3f, 5.0e9f, {0.0f, 0.0f, 1.0f}, 0.0f, 0.0f, 0.0f, false };
+
+
+    CelestialBody bodies[] = { star1, star2, planet };
+
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
@@ -273,12 +294,12 @@ CelestialBody planet = { 5.0f, 0.0f, 0.0f, 0.3f, 5.0e9f, {0.0f, 0.0f, 1.0f}, 0.0
 
         updateBodies(bodies, 3);  // Update the positions of celestial bodies
 
-        glTranslatef(0.0f, 0.0f, cameraZ); // Apply camera translation
+        glTranslatef(cameraX, cameraY, cameraZ); // Apply camera translation
         glRotatef(pitch, 1.0f, 0.0f, 0.0f); // Apply pitch rotation
         glRotatef(yaw, 0.0f, 1.0f, 0.0f);   // Apply yaw rotation
 
         // Draw the gravity grid for visualization
-        drawGravityGrid(50, 0.25f, bodies, 3);
+        drawGravityGrid(100, 0.25f, bodies, 3);
 
         // Draw celestial bodies
         for (int i = 0; i < 3; ++i) {
