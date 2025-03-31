@@ -1,22 +1,23 @@
 #include <windows.h>
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
 #include <GLFW/glfw3.h>
 #include <GL/gl.h>
 #include <GL/glu.h>
 #include <cmath>
 #include <vector>
 
+
 float zoomLevel = 45.0f; // Initial zoom level
 const float G = 6.67430e-11f; // Gravitational constant
 float deltaTime = 0.1f; // Time step
-// Variables to track mouse movement and camera rotation
 double lastX = 320.0, lastY = 240.0; // Initial mouse position (center of window)
 double lastRightX = 320.0, lastRightY = 240.0; // Right mouse position for dragging
 float pitch = 0.0f, yaw = -90.0f;     // Camera rotation angles
 bool isDragging = false;               // Flag for left mouse button hold
 bool isRightDragging = false; // Flag for right mouse button hold
 float cameraX = 0.0f, cameraY = 0.0f, cameraZ = -15.0f; // Camera position
-
-
 
 // Structure to represent celestial bodies
 struct CelestialBody {
@@ -109,7 +110,6 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
     //if (zoomLevel > 90.0f) zoomLevel = 90.0f;  // Set a maximum zoom level
 }
 
-
 // Function to handle mouse movement and dragging for both left and right mouse buttons
 void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
     // Get the current state of the mouse buttons (whether they are pressed or released)
@@ -149,9 +149,6 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
     }
 }
 
-
-
-
 // Function to handle mouse button press and release events
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     if (button == GLFW_MOUSE_BUTTON_LEFT) {
@@ -166,9 +163,6 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         }
     }
 }
-
-
-
 
 // Function to handle window resizing
 void reshape(GLFWwindow* window, int width, int height) {
@@ -243,8 +237,6 @@ void updateBodies(CelestialBody* bodies, int numBodies) {
 }
 
 
-
-
 int main(void) {
     GLFWwindow* window;
 
@@ -260,8 +252,16 @@ int main(void) {
     }
 
     glfwMakeContextCurrent(window);
+    glfwSwapInterval(1);  // Enable V-Sync
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGui::StyleColorsDark();
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplOpenGL3_Init("#version 130");
     glfwSetFramebufferSizeCallback(window, reshape);
     glfwSetScrollCallback(window, scroll_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);  // For mouse click handling
     glfwSetCursorPosCallback(window, mouse_callback);  // For rotation
     glfwSetMouseButtonCallback(window, mouse_button_callback);  // For leftt dragging
     glEnable(GL_DEPTH_TEST); // Enable depth testing for proper 3D rendering
@@ -282,7 +282,28 @@ int main(void) {
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
+
+        // Start ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        // GUI rendering here
+        ImGui::Begin("Simulation Controls");
+
+        // Example GUI elements
+        ImGui::SliderFloat("Zoom", &zoomLevel, 10.0f, 90.0f);
+        if (ImGui::Button("Reset Simulation")) {
+            // Reset bodies positions and velocities
+        }
+
+        // You can add checkboxes, sliders, etc., here
+        ImGui::End();
+
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear the screen
+
+        
 
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
@@ -309,9 +330,18 @@ int main(void) {
 
         updateBodies(bodies, 3);  // Update the positions of celestial bodies
 
+        // Render ImGui
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         glfwSwapBuffers(window);  // Swap buffers
         glfwPollEvents();  // Poll for events
     }
+
+    // Clean up ImGui
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
 
     glfwTerminate();  // Clean up GLFW resources
     return 0;

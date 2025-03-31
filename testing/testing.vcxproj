@@ -70,6 +70,14 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\include\SDL2;$(ProjectDir)vendor\ImGui;$(ProjectDir)vendor\ImGui\backends;$(IncludePath)</IncludePath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\include\SDL2;$(ProjectDir)vendor\ImGui;$(ProjectDir)vendor\ImGui\backends;$(IncludePath)</IncludePath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -102,15 +110,15 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>IMGUI_IMPL_WEBGPU_BACKEND_DAWN=1</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\Mi\vcpkg\packages\glfw3_x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\include\SDL2;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\Users\Mi\vcpkg\packages\glfw3_x64-windows\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glfw3dll.lib;opengl32.lib;user32.lib;gdi32.lib;shell32.lib;GLU32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\lib\pkgconfig;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\lib\manual-link;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -119,21 +127,87 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>IMGUI_IMPL_WEBGPU_BACKEND_DAWN=1</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>C:\Users\Mi\vcpkg\packages\glfw3_x64-windows\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\include\SDL2;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>C:\Users\Mi\vcpkg\packages\glfw3_x64-windows\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>glfw3dll.lib;opengl32.lib;user32.lib;gdi32.lib;shell32.lib;GLU32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\lib\pkgconfig;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\lib\manual-link;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_allegro5.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_dx10.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_dx11.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_dx12.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_dx9.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_glfw.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_glut.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_opengl2.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_sdl2.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_sdl3.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_sdlgpu3.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_sdlrenderer2.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_sdlrenderer3.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_vulkan.cpp" />
+    <ClCompile Include="vendor\ImGui\backends\imgui_impl_win32.cpp" />
+    <ClCompile Include="vendor\ImGui\imgui.cpp" />
+    <ClCompile Include="vendor\ImGui\imgui_demo.cpp" />
+    <ClCompile Include="vendor\ImGui\imgui_draw.cpp" />
+    <ClCompile Include="vendor\ImGui\imgui_tables.cpp" />
+    <ClCompile Include="vendor\ImGui\imgui_widgets.cpp" />
+    <ClCompile Include="vendor\ImGui\misc\cpp\imgui_stdlib.cpp" />
+    <ClCompile Include="vendor\ImGui\misc\freetype\imgui_freetype.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="glfw3.dll" />
+    <None Include="vendor\ImGui\.editorconfig" />
+    <None Include="vendor\ImGui\.gitattributes" />
+    <None Include="vendor\ImGui\.gitignore" />
+    <None Include="vendor\ImGui\backends\imgui_impl_metal.mm" />
+    <None Include="vendor\ImGui\backends\imgui_impl_osx.mm" />
+    <None Include="x64\glfw3.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="vendor\ImGui\LICENSE.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_allegro5.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_dx10.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_dx11.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_dx12.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_dx9.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_glfw.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_glut.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_metal.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_opengl2.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_opengl3.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_opengl3_loader.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_osx.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_sdl2.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_sdl3.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_sdlgpu3.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_sdlgpu3_shaders.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_sdlrenderer2.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_sdlrenderer3.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_vulkan.h" />
+    <ClInclude Include="vendor\ImGui\backends\imgui_impl_win32.h" />
+    <ClInclude Include="vendor\ImGui\imconfig.h" />
+    <ClInclude Include="vendor\ImGui\imgui.h" />
+    <ClInclude Include="vendor\ImGui\imgui_internal.h" />
+    <ClInclude Include="vendor\ImGui\imstb_rectpack.h" />
+    <ClInclude Include="vendor\ImGui\imstb_textedit.h" />
+    <ClInclude Include="vendor\ImGui\imstb_truetype.h" />
+    <ClInclude Include="vendor\ImGui\misc\cpp\imgui_stdlib.h" />
+    <ClInclude Include="vendor\ImGui\misc\freetype\imgui_freetype.h" />
+    <ClInclude Include="vendor\ImGui\misc\single_file\imgui_single_file.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
