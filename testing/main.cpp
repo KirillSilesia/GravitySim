@@ -13,8 +13,8 @@
 using namespace std;
 
 float zoomLevel = 45.0f; // Initial zoom level
-const float G = 6.67430e-11f; // Gravitational constant
-float deltaTime = 0.1f; // Time step
+const float G = 0.66743f; // Adjusted gravitational constant
+float deltaTime = 0.016f; // Smaller time step for accurate simulation
 double lastX = 320.0, lastY = 240.0; // Initial mouse position (center of window)
 double lastRightX = 320.0, lastRightY = 240.0; // Right mouse position for dragging
 float pitch = 0.0f, yaw = -90.0f;     // Camera rotation angles
@@ -51,7 +51,7 @@ void drawSphere(float radius, float x, float y, float z, float* color) {
 // Function to draw the gravity grid (for visualization purposes)
 void drawGravityGrid(int gridSize, float lineSpacing, CelestialBody* bodies, int numBodies) {
     int numLines = gridSize / lineSpacing;
-    float gravityScale = 5.0f;
+    float gravityScale = 50.f; // Increased scale for better visualization
 
     glColor3f(0.5f, 0.5f, 0.5f);  // Set the color for the grid
     glBegin(GL_LINES);
@@ -182,19 +182,20 @@ glm::vec3 calculateCenterOfMass(CelestialBody* bodies, int numBodies) {
     glm::vec3 centerOfMass(0.0f);
     float totalMass = 0.0f;
 
+    // Loop through all bodies to accumulate their mass and position
     for (int i = 0; i < numBodies; ++i) {
-        if (bodies[i].isStar) {  // Only stars contribute to the COM
-            totalMass += bodies[i].mass;
-            centerOfMass += bodies[i].mass * glm::vec3(bodies[i].x, bodies[i].y, bodies[i].z);
-        }
+        totalMass += bodies[i].mass;
+        centerOfMass += bodies[i].mass * glm::vec3(bodies[i].x, bodies[i].y, bodies[i].z);
     }
 
+    // Avoid division by zero if totalMass is zero
     if (totalMass > 0.0f) {
         centerOfMass /= totalMass;
     }
 
     return centerOfMass;
 }
+
 
 
 // Function to handle window resizing
@@ -210,112 +211,76 @@ void reshape(GLFWwindow* window, int width, int height) {
     glLoadIdentity();
 }
 
-// Function to update star velocities
-void updateStarVelocities(CelestialBody* bodies, int numBodies, float deltaTime) {
-    for (int i = 0; i < numBodies; ++i) {
-        if (!bodies[i].isStar) continue;  // Skip non-star bodies
-
-        glm::vec3 totalForce(0.0f);
-
-        for (int j = 0; j < numBodies; ++j) {
-            if (i == j || !bodies[j].isStar) continue;  // Don't calculate force on itself or non-stars
-
-            glm::vec3 direction = glm::vec3(bodies[j].x, bodies[j].y, bodies[j].z) - glm::vec3(bodies[i].x, bodies[i].y, bodies[i].z);
-            float distance = glm::length(direction);
-            direction = glm::normalize(direction);
-
-            // Gravitational force magnitude
-            float forceMagnitude = (G * bodies[i].mass * bodies[j].mass) / (distance * distance);
-
-            // Force vector
-            glm::vec3 force = forceMagnitude * direction;
-            totalForce += force;
-        }
-
-        // Update velocity (velocity += force * time step / mass)
-        bodies[i].vx += totalForce.x / bodies[i].mass * deltaTime;
-        bodies[i].vy += totalForce.y / bodies[i].mass * deltaTime;
-        bodies[i].vz += totalForce.z / bodies[i].mass * deltaTime;
-    }
-}
-
 
 // Function to update the positions and velocities of celestial bodies based on gravity
 void updatePositionsAndVelocities(CelestialBody* bodies, int numBodies, float deltaTime) {
     // Temporary arrays to store acceleration values
-    float* ax = new float[numBodies]();
-    float* az = new float[numBodies]();
+    glm::vec3* accelerations = new glm::vec3[numBodies]();
 
-    // Compute gravitational forces between all bodies
+    // Compute gravitational forces between all pairs of bodies
     for (int i = 0; i < numBodies; ++i) {
+        CelestialBody& body1 = bodies[i];
+
         for (int j = 0; j < numBodies; ++j) {
-            if (i == j) continue;  // Skip self-interaction
+            if (i != j) {
+                CelestialBody& body2 = bodies[j];
 
-            CelestialBody& body1 = bodies[i];
-            CelestialBody& body2 = bodies[j];
+                // Calculate the distance vector from body1 to body2
+                glm::vec3 r_vec = glm::vec3(body2.x - body1.x, 0, body2.z - body1.z); // 2D distance ignoring y-axis
+                float r2 = glm::dot(r_vec, r_vec);  // r squared
 
-            float dx = body2.x - body1.x;
-            float dz = body2.z - body1.z;
-            float r2 = dx * dx + dz * dz;  // Squared distance
+                if (r2 < 1e-6f) continue;  // Avoid division by zero or too small values
 
-            if (r2 < 1e-6f) continue;  // Prevent division by zero or extremely small values
+                float r_dist = sqrt(r2);  // Scalar distance between the bodies
+                float force = G * body1.mass * body2.mass / r2;  // Gravitational force magnitude
 
-            float r = sqrt(r2);
-            float force = G * body1.mass * body2.mass / r2;  // Gravitational force magnitude
+                // Calculate acceleration due to the gravitational force (Newton's 2nd law: F = ma)
+                glm::vec3 acceleration = (force / body1.mass) * glm::normalize(r_vec); // Normalize the direction
 
-            // Acceleration components
-            ax[i] += force * dx / (r * body1.mass);
-            az[i] += force * dz / (r * body1.mass);
+                // Add the acceleration from body2 to body1 to the current body's acceleration
+                accelerations[i] += acceleration;
+            }
         }
     }
 
-    // Update velocities and positions
+    // Update velocities and positions based on the calculated accelerations
     for (int i = 0; i < numBodies; ++i) {
         CelestialBody& body = bodies[i];
 
-        body.vx += ax[i] * deltaTime;
-        body.vz += az[i] * deltaTime;
+        // Update velocity
+        body.vx += accelerations[i].x * deltaTime;
+        body.vz += accelerations[i].z * deltaTime;
 
+        // Update position
         body.x += body.vx * deltaTime;
         body.z += body.vz * deltaTime;
     }
 
     // Free dynamically allocated arrays
-    delete[] ax;
-    delete[] az;
+    delete[] accelerations;
 }
 
+
+
+
 void initializeOrbitalVelocities(CelestialBody* bodies, int numBodies) {
-    // Calculate the center of mass of the star system
     glm::vec3 CoM = calculateCenterOfMass(bodies, numBodies);
 
     for (int i = 0; i < numBodies; ++i) {
-        CelestialBody& body = bodies[i];
+        if (bodies[i].isStar) continue; // Skip stars
 
-        // Skip center of mass calculations for objects already at the CoM
-        float dx = body.x - CoM.x;
-        float dz = body.z - CoM.z;
-        float r2 = dx * dx + dz * dz;  // Squared distance
-        if (r2 < 1e-6f) continue;  // Avoid division by zero if already at the center
+        float dx = bodies[i].x - CoM.x;
+        float dz = bodies[i].z - CoM.z;
+        float r = sqrt(dx * dx + dz * dz);
 
-        float r = sqrt(r2);  // Distance from the center of mass
+        float orbitalSpeed = sqrt(G * 100.0e10f / r); //Approximation using mass of main star
 
-        // Determine which bodies contribute to gravity (only stars)
-        float starMassSum = 0.0f;
-        for (int j = 0; j < numBodies; ++j) {
-            if (bodies[j].isStar) {
-                starMassSum += bodies[j].mass;
-            }
-        }
-
-        // Compute orbital velocity for a circular orbit around the CoM
-        float velocityMagnitude = sqrt(G * starMassSum / r);
-
-        // Set velocity perpendicular to the radial vector
-        body.vx = -dz * velocityMagnitude / r;
-        body.vz = dx * velocityMagnitude / r;
+        bodies[i].vx = -dz / r * orbitalSpeed;
+        bodies[i].vz = dx / r * orbitalSpeed;
     }
 }
+
+
 
 
 // Function to initialize the OpenGL window
@@ -340,9 +305,9 @@ GLFWwindow* initializeOpenGL() {
 }
 
 // Test objects (celestial bodies)
-CelestialBody star1 = { 0.0f, 0.0f, 0.0f, 5.0f, 100.0e10f, {1.0f, 1.0f, 0.0f}, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, true };
-CelestialBody star2 = { 10.0f, 0.0f, 0.0f, 0.5f, 2.0e10f, {1.0f, 0.0f, 0.0f}, -0.2f, 0.0f, 0.1f, 0.0f, 0.0f, true };
-CelestialBody planet = { 5.0f, 0.0f, 0.0f, 0.3f, 5.0e9f, {0.0f, 0.0f, 1.0f}, 0.0f, 0.0f, 0.0f, false };
+CelestialBody star1 = { 0.0f, 0.0f, 0.0f, 0.5f, 10.0f, {1.0f, 1.0f, 0.0f}, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, true };
+CelestialBody star2 = { 20.0f, 0.0f, 0.0f, 0.5f, 10.0f, {1.0f, 0.0f, 0.0f}, -0.2f, 0.0f, 0.1f, 0.0f, 0.0f, true };
+CelestialBody planet = { 15.0f, 0.0f, 0.0f, 0.3f, 0.5f, {0.0f, 0.0f, 1.0f}, 0.0f, 0.0f, 0.0f, false };
 
 
 CelestialBody bodies[] = { star1, star2, planet };
@@ -406,6 +371,11 @@ int main(void) {
     ImGui_ImplOpenGL3_Init("#version 130");
 
     initializeOrbitalVelocities(bodies, 3);
+    for (int i = 0; i < 3; ++i) {
+        initialVelocities[i].x = bodies[i].vx;
+        initialVelocities[i].y = bodies[i].vy;
+        initialVelocities[i].z = bodies[i].vz;
+    }
     float lastTime = glfwGetTime();
     float deltaTime;
 
