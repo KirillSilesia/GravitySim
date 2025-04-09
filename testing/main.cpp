@@ -9,8 +9,13 @@
 #include <vector>
 #include <iostream>
 #include <glm/glm.hpp>
+#pragma managed(push, off)
+#include <occi.h>
+#include <oratypes.h>
+#pragma managed(pop)
 
 using namespace std;
+using namespace oracle::occi;
 
 float zoomLevel = 45.0f; // Initial zoom level
 const float G = 0.66743f; // Adjusted gravitational constant
@@ -127,39 +132,39 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
     if (io.WantCaptureMouse) {
         return; // Check if the mouse is in GUI
     }
-    
-        int leftButtonState = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
-        int rightButtonState = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT);
 
-        if (leftButtonState == GLFW_PRESS) {
-            // Rotate the camera
-            float xOffset = xpos - lastX;
-            float yOffset = lastY - ypos;
-            lastX = xpos;
-            lastY = ypos;
+    int leftButtonState = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT);
+    int rightButtonState = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT);
 
-            float sensitivity = 0.1f;
-            xOffset *= sensitivity;
-            yOffset *= sensitivity;
+    if (leftButtonState == GLFW_PRESS) {
+        // Rotate the camera
+        float xOffset = xpos - lastX;
+        float yOffset = lastY - ypos;
+        lastX = xpos;
+        lastY = ypos;
 
-            yaw += xOffset;
-            pitch += yOffset;
+        float sensitivity = 0.1f;
+        xOffset *= sensitivity;
+        yOffset *= sensitivity;
 
-            if (pitch > 89.0f) pitch = 89.0f;
-            if (pitch < -89.0f) pitch = -89.0f;
-        }
+        yaw += xOffset;
+        pitch += yOffset;
 
-        if (rightButtonState == GLFW_PRESS) {
-            // Move the camera
-            float xOffset = xpos - lastRightX;
-            float yOffset = lastRightY - ypos;
-            lastRightX = xpos;
-            lastRightY = ypos;
+        if (pitch > 89.0f) pitch = 89.0f;
+        if (pitch < -89.0f) pitch = -89.0f;
+    }
 
-            float sensitivity = 0.05f;
-            cameraX -= xOffset * sensitivity;
-            cameraY += yOffset * sensitivity;
-        }
+    if (rightButtonState == GLFW_PRESS) {
+        // Move the camera
+        float xOffset = xpos - lastRightX;
+        float yOffset = lastRightY - ypos;
+        lastRightX = xpos;
+        lastRightY = ypos;
+
+        float sensitivity = 0.05f;
+        cameraX -= xOffset * sensitivity;
+        cameraY += yOffset * sensitivity;
+    }
 }
 
 
@@ -195,8 +200,6 @@ glm::vec3 calculateCenterOfMass(CelestialBody* bodies, int numBodies) {
 
     return centerOfMass;
 }
-
-
 
 // Function to handle window resizing
 void reshape(GLFWwindow* window, int width, int height) {
@@ -280,9 +283,6 @@ void initializeOrbitalVelocities(CelestialBody* bodies, int numBodies) {
     }
 }
 
-
-
-
 // Function to initialize the OpenGL window
 GLFWwindow* initializeOpenGL() {
     if (!glfwInit()) {
@@ -300,7 +300,7 @@ GLFWwindow* initializeOpenGL() {
 
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1);
-    
+
     return window;
 }
 
@@ -337,6 +337,39 @@ void resetSimulation() {
 }
 
 int main(void) {
+    Environment* env = nullptr;
+    Connection* conn = nullptr;
+    Statement* stmt = nullptr;
+    ResultSet* rs = nullptr;
+
+    try {
+        // Database Connection
+        string user = "msbd15";
+        string password = "haslo2025";
+        string connectString = "//155.158.112.45:1521/oltpstud"; // Replace with your values
+
+        env = Environment::createEnvironment(Environment::DEFAULT);
+        conn = env->createConnection(user, password, connectString);
+        cout << "Connected to the database!" << endl;
+
+        // Test Query
+        stmt = conn->createStatement();
+        stmt->setSQL("SELECT 1 FROM DUAL");
+        rs = stmt->executeQuery();
+
+        if (rs->next()) {
+            cout << "Database test query successful: " << rs->getInt(1) << endl;
+        }
+        else {
+            cout << "Database test query failed." << endl;
+        }
+
+        conn->terminateStatement(stmt);
+    }
+    catch (SQLException& ex) {
+        cout << "Error: " << ex.getMessage() << endl;
+    }
+
     GLFWwindow* window;
 
     // Initialize GLFW
@@ -383,7 +416,7 @@ int main(void) {
     // Main loop
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
-       
+
         float currentTime = glfwGetTime();
         deltaTime = currentTime - lastTime;
         lastTime = currentTime;
@@ -421,8 +454,8 @@ int main(void) {
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
 
-        glTranslatef(cameraX, cameraY, cameraZ); 
-        glRotatef(pitch, 1.0f, 0.0f, 0.0f); 
+        glTranslatef(cameraX, cameraY, cameraZ);
+        glRotatef(pitch, 1.0f, 0.0f, 0.0f);
         glRotatef(yaw, 0.0f, 1.0f, 0.0f);
 
         drawGravityGrid(100, 0.25f, bodies, 3);
@@ -436,10 +469,42 @@ int main(void) {
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
-        glfwSwapBuffers(window);  
+        glfwSwapBuffers(window);
     }
 
-
+    // Clean up OCCI
+    if (rs) {
+        try {
+            stmt->closeResultSet(rs);
+        }
+        catch (SQLException& ex) {
+            cout << "Error closing result set: " << ex.getMessage() << endl;
+        }
+    }
+    if (stmt) {
+        try {
+            conn->terminateStatement(stmt);
+        }
+        catch (SQLException& ex) {
+            cout << "Error terminating statement: " << ex.getMessage() << endl;
+        }
+    }
+    if (conn) {
+        try {
+            env->terminateConnection(conn);
+        }
+        catch (SQLException& ex) {
+            cout << "Error terminating connection: " << ex.getMessage() << endl;
+        }
+    }
+    if (env) {
+        try {
+            Environment::terminateEnvironment(env);
+        }
+        catch (SQLException& ex) {
+            cout << "Error terminating environment: " << ex.getMessage() << endl;
+        }
+    }
 
     // Clean up ImGui
     ImGui_ImplOpenGL3_Shutdown();
