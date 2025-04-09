@@ -16,13 +16,12 @@
 #define OCCI_DEMO_NEED_IMPORT
 #define _CRT_SECURE_NO_DEPRECATE
 
-
 using namespace std;
 using namespace oracle::occi;
 
 float zoomLevel = 45.0f; // Initial zoom level
 const float G = 0.66743f; // Adjusted gravitational constant
-float deltaTime = 0.016f; // Smaller time step for accurate simulation
+float deltaTime = 500.0f; // Smaller time step for accurate simulation
 double lastX = 320.0, lastY = 240.0; // Initial mouse position (center of window)
 double lastRightX = 320.0, lastRightY = 240.0; // Right mouse position for dragging
 float pitch = 0.0f, yaw = -90.0f;     // Camera rotation angles
@@ -37,6 +36,8 @@ struct Vector3 {
 
 // Structure to represent celestial bodies
 struct CelestialBody {
+    string BodyName;
+    string BodyType;
     float x, y, z;  // Position
     float size;     // Size
     float mass;     // Mass
@@ -57,7 +58,7 @@ void drawSphere(float radius, float x, float y, float z, float* color) {
 }
 
 // Function to draw the gravity grid (for visualization purposes)
-void drawGravityGrid(int gridSize, float lineSpacing, CelestialBody* bodies, int numBodies) {
+void drawGravityGrid(int gridSize, float lineSpacing, vector<CelestialBody>& bodies) {
     int numLines = gridSize / lineSpacing;
     float gravityScale = 50.f; // Increased scale for better visualization
 
@@ -73,7 +74,7 @@ void drawGravityGrid(int gridSize, float lineSpacing, CelestialBody* bodies, int
             float z = (j - numLines / 2) * lineSpacing;
             float y = 0.0f;
 
-            for (int b = 0; b < numBodies; ++b) {
+            for (size_t b = 0; b < bodies.size(); ++b) {
                 CelestialBody& body = bodies[b];
 
                 float dx = x - body.x;
@@ -84,7 +85,6 @@ void drawGravityGrid(int gridSize, float lineSpacing, CelestialBody* bodies, int
                 // Calculate gravitational force and apply it to the height at the point
                 float force = (G * body.mass) / distanceSquared;
                 y -= force * gravityScale / (1.0f + distance * 0.1f);
-
             }
 
             heights[i][j] = y;
@@ -127,10 +127,8 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
     zoomLevel -= yoffset * zoomSpeed;
 }
 
-
 // Mouse callback function
 void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
-
     ImGuiIO& io = ImGui::GetIO();
     if (io.WantCaptureMouse) {
         return; // Check if the mouse is in GUI
@@ -170,8 +168,7 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
     }
 }
 
-
-
+// Mouse button callback function
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     ImGuiIO& io = ImGui::GetIO();
     if (io.WantCaptureMouse) return;
@@ -186,12 +183,12 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 }
 
 // Calculating stars center of mass
-glm::vec3 calculateCenterOfMass(CelestialBody* bodies, int numBodies) {
+glm::vec3 calculateCenterOfMass(vector<CelestialBody>& bodies) {
     glm::vec3 centerOfMass(0.0f);
     float totalMass = 0.0f;
 
     // Loop through all bodies to accumulate their mass and position
-    for (int i = 0; i < numBodies; ++i) {
+    for (size_t i = 0; i < bodies.size(); ++i) {
         totalMass += bodies[i].mass;
         centerOfMass += bodies[i].mass * glm::vec3(bodies[i].x, bodies[i].y, bodies[i].z);
     }
@@ -217,17 +214,16 @@ void reshape(GLFWwindow* window, int width, int height) {
     glLoadIdentity();
 }
 
-
 // Function to update the positions and velocities of celestial bodies based on gravity
-void updatePositionsAndVelocities(CelestialBody* bodies, int numBodies, float deltaTime) {
+void updatePositionsAndVelocities(vector<CelestialBody>& bodies, float deltaTime) {
     // Temporary arrays to store acceleration values
-    glm::vec3* accelerations = new glm::vec3[numBodies]();
+    vector<glm::vec3> accelerations(bodies.size(), glm::vec3(0.0f));
 
     // Compute gravitational forces between all pairs of bodies
-    for (int i = 0; i < numBodies; ++i) {
+    for (size_t i = 0; i < bodies.size(); ++i) {
         CelestialBody& body1 = bodies[i];
 
-        for (int j = 0; j < numBodies; ++j) {
+        for (size_t j = 0; j < bodies.size(); ++j) {
             if (i != j) {
                 CelestialBody& body2 = bodies[j];
 
@@ -250,7 +246,7 @@ void updatePositionsAndVelocities(CelestialBody* bodies, int numBodies, float de
     }
 
     // Update velocities and positions based on the calculated accelerations
-    for (int i = 0; i < numBodies; ++i) {
+    for (size_t i = 0; i < bodies.size(); ++i) {
         CelestialBody& body = bodies[i];
 
         // Update velocity
@@ -261,18 +257,12 @@ void updatePositionsAndVelocities(CelestialBody* bodies, int numBodies, float de
         body.x += body.vx * deltaTime;
         body.z += body.vz * deltaTime;
     }
-
-    // Free dynamically allocated arrays
-    delete[] accelerations;
 }
 
+void initializeOrbitalVelocities(vector<CelestialBody>& bodies) {
+    glm::vec3 CoM = calculateCenterOfMass(bodies);
 
-
-
-void initializeOrbitalVelocities(CelestialBody* bodies, int numBodies) {
-    glm::vec3 CoM = calculateCenterOfMass(bodies, numBodies);
-
-    for (int i = 0; i < numBodies; ++i) {
+    for (size_t i = 0; i < bodies.size(); ++i) {
         if (bodies[i].isStar) continue; // Skip stars
 
         float dx = bodies[i].x - CoM.x;
@@ -307,36 +297,74 @@ GLFWwindow* initializeOpenGL() {
     return window;
 }
 
-// Test objects (celestial bodies)
-CelestialBody star1 = { 0.0f, 0.0f, 0.0f, 0.5f, 10.0f, {1.0f, 1.0f, 0.0f}, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, true };
-CelestialBody star2 = { 20.0f, 0.0f, 0.0f, 0.5f, 10.0f, {1.0f, 0.0f, 0.0f}, -0.2f, 0.0f, 0.1f, 0.0f, 0.0f, true };
-CelestialBody planet = { 15.0f, 0.0f, 0.0f, 0.3f, 0.5f, {0.0f, 0.0f, 1.0f}, 0.0f, 0.0f, 0.0f, false };
+// Function to fetch solar system names from the database
+vector<string> fetchSolarSystemNames(Connection* conn) {
+    vector<string> solarSystemNames;
+    Statement* stmt = nullptr;
+    ResultSet* rs = nullptr;
 
+    try {
+        stmt = conn->createStatement();
+        stmt->setSQL("SELECT SolarSystemName FROM SolarSystems");
+        rs = stmt->executeQuery();
 
-CelestialBody bodies[] = { star1, star2, planet };
+        while (rs->next()) {
+            solarSystemNames.push_back(rs->getString(1));
+        }
 
-Vector3 initialPositions[] = {
-    { bodies[0].x, bodies[0].y, bodies[0].z },
-    { bodies[1].x, bodies[1].y, bodies[1].z },
-    { bodies[2].x, bodies[2].y, bodies[2].z }
-};
-
-Vector3 initialVelocities[] = {
-    { bodies[0].vx, bodies[0].vy, bodies[0].vz },
-    { bodies[1].vx, bodies[1].vy, bodies[1].vz },
-    { bodies[2].vx, bodies[2].vy, bodies[2].vz }
-};
-
-void resetSimulation() {
-    for (int i = 0; i < 3; i++) {
-        bodies[i].x = initialPositions[i].x;
-        bodies[i].y = initialPositions[i].y;
-        bodies[i].z = initialPositions[i].z;
-
-        bodies[i].vx = initialVelocities[i].x;
-        bodies[i].vy = initialVelocities[i].y;
-        bodies[i].vz = initialVelocities[i].z;
+        conn->terminateStatement(stmt);
     }
+    catch (SQLException& ex) {
+        cout << "Error fetching solar system names: " << ex.getMessage() << endl;
+    }
+
+    return solarSystemNames;
+}
+
+// Function to fetch celestial bodies by SolarSystemID
+vector<CelestialBody> fetchCelestialBodies(Connection* conn, int solarSystemID) {
+    vector<CelestialBody> celestialBodies;
+    Statement* stmt = nullptr;
+    ResultSet* rs = nullptr;
+
+    try {
+        stmt = conn->createStatement();
+        stmt->setSQL("SELECT BodyName, BodyType, Mass, Size, Color, X, Y, Z, VX, VY, VZ, IsStar FROM CelestialBodies WHERE SolarSystemID = :1");
+        stmt->setInt(1, solarSystemID);
+        rs = stmt->executeQuery();
+
+        while (rs->next()) {
+            CelestialBody body;
+            body.BodyName = rs->getString(1);
+            body.BodyType = rs->getString(2);
+            body.mass = rs->getDouble(3);
+            body.size = rs->getFloat(4);
+            // Parse color string to float array
+            string colorStr = rs->getString(5);
+            sscanf_s(colorStr.c_str(), "%f,%f,%f", &body.color[0], &body.color[1], &body.color[2]);
+            body.x = rs->getFloat(6);
+            body.y = rs->getFloat(7);
+            body.z = rs->getFloat(8);
+            body.vx = rs->getFloat(9);
+            body.vy = rs->getFloat(10);
+            body.vz = rs->getFloat(11);
+            body.isStar = rs->getInt(12) == 1;
+            celestialBodies.push_back(body);
+        }
+
+        conn->terminateStatement(stmt);
+    }
+    catch (SQLException& ex) {
+        cout << "Error fetching celestial bodies: " << ex.getMessage() << endl;
+    }
+
+    return celestialBodies;
+}
+
+// Update the bodies array with the selected solar system
+void updateBodies(Connection* conn, int solarSystemID, vector<CelestialBody>& bodies) {
+    vector<CelestialBody> fetchedBodies = fetchCelestialBodies(conn, solarSystemID);
+    bodies = fetchedBodies;
 }
 
 int main(void) {
@@ -345,6 +373,10 @@ int main(void) {
     Statement* stmt = nullptr;
     ResultSet* rs = nullptr;
     GLFWwindow* window = nullptr;
+
+    vector<CelestialBody> bodiesVector;
+    CelestialBody* bodies = nullptr;
+    int numBodies = 0;
 
     try {
         // Database Connection
@@ -370,12 +402,10 @@ int main(void) {
 
         conn->terminateStatement(stmt);
         stmt = nullptr;
-
     }
     catch (SQLException& ex) {
         cout << "Error: " << ex.getMessage() << endl;
     }
-
 
     // Initialize GLFW
     if (!glfwInit())
@@ -408,21 +438,30 @@ int main(void) {
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 130");
 
-    initializeOrbitalVelocities(bodies, 3);
-    for (int i = 0; i < 3; ++i) {
-        initialVelocities[i].x = bodies[i].vx;
-        initialVelocities[i].y = bodies[i].vy;
-        initialVelocities[i].z = bodies[i].vz;
-    }
     float lastTime = glfwGetTime();
     float deltaTime;
+
+    // Solar system selection
+    static int selectedSolarSystemIndex = 0;
+    vector<string> solarSystemNames = fetchSolarSystemNames(conn); // Fetch names from database
+    if (!solarSystemNames.empty()) {
+        updateBodies(conn, selectedSolarSystemIndex + 1, bodiesVector);
+        numBodies = bodiesVector.size();
+        bodies = new CelestialBody[numBodies];
+        for (int i = 0; i < numBodies; ++i) {
+            bodies[i] = bodiesVector[i];
+        }
+        initializeOrbitalVelocities(bodiesVector);
+    }
+
+    static int previousSolarSystemIndex = -1;
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
         float currentTime = glfwGetTime();
-        deltaTime = currentTime - lastTime;
+        deltaTime = (currentTime - lastTime) * 10;
         lastTime = currentTime;
 
         // Update ImGui
@@ -441,14 +480,39 @@ int main(void) {
 
         // GUI elements
         ImGui::SliderFloat("Zoom", &zoomLevel, 10.0f, 90.0f);
-        if (ImGui::Button("Reset Simulation")) {
-            resetSimulation();
+        // Solar system selection
+        if (!solarSystemNames.empty()) {
+            const char* combo_preview_value = solarSystemNames[selectedSolarSystemIndex].c_str();
+            if (ImGui::BeginCombo("Solar System", combo_preview_value)) {
+                for (int n = 0; n < solarSystemNames.size(); n++) {
+                    const bool is_selected = (selectedSolarSystemIndex == n);
+                    if (ImGui::Selectable(solarSystemNames[n].c_str(), is_selected)) {
+                        selectedSolarSystemIndex = n;
+                    }
+                    if (is_selected)
+                        ImGui::SetItemDefaultFocus();
+                }
+                ImGui::EndCombo();
+            }
+        }
 
+        if (selectedSolarSystemIndex != previousSolarSystemIndex) {
+            updateBodies(conn, selectedSolarSystemIndex + 1, bodiesVector); // +1 because SolarSystemID starts from 1
+            previousSolarSystemIndex = selectedSolarSystemIndex;
+
+            // Convert the vector to a C-style array
+            delete[] bodies;  // Free the old array
+            numBodies = bodiesVector.size();
+            bodies = new CelestialBody[numBodies];
+            for (int i = 0; i < numBodies; ++i) {
+                bodies[i] = bodiesVector[i];
+            }
+            initializeOrbitalVelocities(bodiesVector);
         }
 
         ImGui::End();
 
-        // Cler the frame before rendering
+        // Clear the frame before rendering
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glMatrixMode(GL_PROJECTION);
@@ -462,14 +526,15 @@ int main(void) {
         glRotatef(pitch, 1.0f, 0.0f, 0.0f);
         glRotatef(yaw, 0.0f, 1.0f, 0.0f);
 
-        drawGravityGrid(100, 0.25f, bodies, 3);
+        drawGravityGrid(100, 0.25f, bodiesVector);
 
-        updatePositionsAndVelocities(bodies, 3, deltaTime);
+        updatePositionsAndVelocities(bodiesVector, deltaTime);
 
-        for (int i = 0; i < 3; ++i) {
+        for (int i = 0; i < numBodies; ++i) {
             drawSphere(bodies[i].size, bodies[i].x, bodies[i].y, bodies[i].z, bodies[i].color);
         }
 
+        // Render ImGui
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
@@ -484,14 +549,15 @@ int main(void) {
     glfwDestroyWindow(window);
     glfwTerminate();
 
-    try {
-        if (conn) {
+    if (conn) {
+        try {
             env->terminateConnection(conn);
+            Environment::terminateEnvironment(env);
+            cout << "Disconnected from the database." << endl;
         }
-        Environment::terminateEnvironment(env);
-    }
-    catch (SQLException& ex) {
-        std::cout << "Error during database disconnection: " << ex.getMessage() << std::endl;
+        catch (SQLException& ex) {
+            cout << "Error during disconnection: " << ex.getMessage() << endl;
+        }
     }
 
     return 0;
