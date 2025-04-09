@@ -71,12 +71,12 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>D:\Instant client SDK\instantclient_21_17\sdk\lib\msvc;D:\Instant client SDK\instantclient_21_17\sdk\include;C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\include\SDL2;$(ProjectDir)vendor\ImGui;$(ProjectDir)vendor\ImGui\backends;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\Instant client SDK\instantclient_21_17\sdk\lib\bc;D:\Instant client SDK\instantclient_21_17\sdk\lib\msvc;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\include\SDL2;$(ProjectDir)vendor\ImGui;$(ProjectDir)vendor\ImGui\backends;$(IncludePath)</IncludePath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>D:\Instant client SDK\instantclient_21_17\sdk\lib\msvc;D:\Instant client SDK\instantclient_21_17\sdk\include;C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\include\SDL2;$(ProjectDir)vendor\ImGui;$(ProjectDir)vendor\ImGui\backends;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\Instant client SDK\instantclient_21_17\sdk\lib\bc;D:\Instant client SDK\instantclient_21_17\sdk\lib\msvc;$(LibraryPath)</LibraryPath>
+    <IncludePath>C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\include\SDL2;$(ProjectDir)vendor\ImGui;$(ProjectDir)vendor\ImGui\backends;$(IncludePath)</IncludePath>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -112,13 +112,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>IMGUI_IMPL_WEBGPU_BACKEND_DAWN=1</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>D:\Instant client SDK\instantclient_21_17\sdk\include;C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\include\SDL2;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\oracle instant client\oracle sdk\instantclient_21_17\sdk\include;C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\include\SDL2;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>D:\Instant client SDK\instantclient_21_17\sdk\lib\msvc;C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\lib\pkgconfig;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\lib\manual-link;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>"D:\Instant client SDK\instantclient_21_17\sdk\lib\msvc\oci.lib";%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>D:\oracle instant client\oracle sdk\instantclient_21_17\sdk\lib\msvc;C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\lib\pkgconfig;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\lib\manual-link;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>"D:\oracle instant client\oracle sdk\instantclient_21_17\sdk\lib\msvc\oraocci21.lib";"D:\oracle instant client\oracle sdk\instantclient_21_17\sdk\lib\msvc\oraocci21d.lib";%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -129,15 +129,15 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>IMGUI_IMPL_WEBGPU_BACKEND_DAWN=1</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>D:\Instant client SDK\instantclient_21_17\sdk\include;C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\include\SDL2;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>D:\oracle instant client\oracle sdk\instantclient_21_17\sdk\include;C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\include\SDL2;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>D:\Instant client SDK\instantclient_21_17\sdk\lib\msvc;C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\lib\pkgconfig;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\lib\manual-link;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>"D:\Instant client SDK\instantclient_21_17\sdk\lib\msvc\oci.lib";%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>D:\oracle instant client\oracle sdk\instantclient_21_17\sdk\lib\msvc;C:\Users\Mi\dawn\dawn\include\webgpu;C:\Users\Mi\dawn\dawn\include;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\lib\pkgconfig;C:\Users\Mi\vcpkg\packages\sdl2_x64-windows\lib\manual-link;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>"D:\oracle instant client\oracle sdk\instantclient_21_17\sdk\lib\msvc\oraocci21.lib";"D:\oracle instant client\oracle sdk\instantclient_21_17\sdk\lib\msvc\oraocci21d.lib";%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

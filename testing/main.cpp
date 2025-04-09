@@ -13,6 +13,9 @@
 #include <occi.h>
 #include <oratypes.h>
 #pragma managed(pop)
+#define OCCI_DEMO_NEED_IMPORT
+#define _CRT_SECURE_NO_DEPRECATE
+
 
 using namespace std;
 using namespace oracle::occi;
@@ -341,6 +344,7 @@ int main(void) {
     Connection* conn = nullptr;
     Statement* stmt = nullptr;
     ResultSet* rs = nullptr;
+    GLFWwindow* window = nullptr;
 
     try {
         // Database Connection
@@ -365,12 +369,13 @@ int main(void) {
         }
 
         conn->terminateStatement(stmt);
+        stmt = nullptr;
+
     }
     catch (SQLException& ex) {
         cout << "Error: " << ex.getMessage() << endl;
     }
 
-    GLFWwindow* window;
 
     // Initialize GLFW
     if (!glfwInit())
@@ -411,7 +416,6 @@ int main(void) {
     }
     float lastTime = glfwGetTime();
     float deltaTime;
-
 
     // Main loop
     while (!glfwWindowShouldClose(window)) {
@@ -472,45 +476,23 @@ int main(void) {
         glfwSwapBuffers(window);
     }
 
-    // Clean up OCCI
-    if (rs) {
-        try {
-            stmt->closeResultSet(rs);
-        }
-        catch (SQLException& ex) {
-            cout << "Error closing result set: " << ex.getMessage() << endl;
-        }
-    }
-    if (stmt) {
-        try {
-            conn->terminateStatement(stmt);
-        }
-        catch (SQLException& ex) {
-            cout << "Error terminating statement: " << ex.getMessage() << endl;
-        }
-    }
-    if (conn) {
-        try {
-            env->terminateConnection(conn);
-        }
-        catch (SQLException& ex) {
-            cout << "Error terminating connection: " << ex.getMessage() << endl;
-        }
-    }
-    if (env) {
-        try {
-            Environment::terminateEnvironment(env);
-        }
-        catch (SQLException& ex) {
-            cout << "Error terminating environment: " << ex.getMessage() << endl;
-        }
-    }
-
-    // Clean up ImGui
+    // Cleanup
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
 
-    glfwTerminate();  // Clean up GLFW resources
+    glfwDestroyWindow(window);
+    glfwTerminate();
+
+    try {
+        if (conn) {
+            env->terminateConnection(conn);
+        }
+        Environment::terminateEnvironment(env);
+    }
+    catch (SQLException& ex) {
+        std::cout << "Error during database disconnection: " << ex.getMessage() << std::endl;
+    }
+
     return 0;
 }
