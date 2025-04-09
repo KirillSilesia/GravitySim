@@ -43,7 +43,6 @@ struct CelestialBody {
     float mass;     // Mass
     float color[3]; // Color
     float vx, vy, vz; // Velocity
-    float initialVx, initialVz;
     bool isStar;
 };
 
@@ -85,6 +84,7 @@ void drawGravityGrid(int gridSize, float lineSpacing, vector<CelestialBody>& bod
                 // Calculate gravitational force and apply it to the height at the point
                 float force = (G * body.mass) / distanceSquared;
                 y -= force * gravityScale / (1.0f + distance * 0.1f);
+
             }
 
             heights[i][j] = y;
@@ -127,8 +127,10 @@ void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
     zoomLevel -= yoffset * zoomSpeed;
 }
 
+
 // Mouse callback function
 void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
+
     ImGuiIO& io = ImGui::GetIO();
     if (io.WantCaptureMouse) {
         return; // Check if the mouse is in GUI
@@ -213,6 +215,7 @@ void reshape(GLFWwindow* window, int width, int height) {
     glMatrixMode(GL_MODELVIEW);  // Set modelview matrix mode
     glLoadIdentity();
 }
+
 
 // Function to update the positions and velocities of celestial bodies based on gravity
 void updatePositionsAndVelocities(vector<CelestialBody>& bodies, float deltaTime) {
@@ -329,8 +332,8 @@ vector<CelestialBody> fetchCelestialBodies(Connection* conn, int solarSystemID) 
 
     try {
         stmt = conn->createStatement();
-        stmt->setSQL("SELECT BodyName, BodyType, Mass, Size, Color, X, Y, Z, VX, VY, VZ, IsStar FROM CelestialBodies WHERE SolarSystemID = :1");
-        stmt->setInt(1, solarSystemID);
+        stmt->setSQL("SELECT BodyName, BodyType, Mass, BodySize, Color, X, Y, Z, VX, VY, VZ, IsStar FROM CelestialBodies WHERE SolarSystemID = :1");
+        stmt->setInt(1, solarSystemID); // Bind the parameter before executing
         rs = stmt->executeQuery();
 
         while (rs->next()) {
@@ -341,7 +344,18 @@ vector<CelestialBody> fetchCelestialBodies(Connection* conn, int solarSystemID) 
             body.size = rs->getFloat(4);
             // Parse color string to float array
             string colorStr = rs->getString(5);
-            sscanf_s(colorStr.c_str(), "%f,%f,%f", &body.color[0], &body.color[1], &body.color[2]);
+            float r, g, b;
+            if (sscanf_s(colorStr.c_str(), "%f,%f,%f", &r, &g, &b) == 3) {
+                body.color[0] = r;
+                body.color[1] = g;
+                body.color[2] = b;
+            }
+            else {
+                body.color[0] = 1.0f;
+                body.color[1] = 1.0f;
+                body.color[2] = 1.0f;
+                cout << "Failed to parse color string: " << colorStr << endl;
+            }
             body.x = rs->getFloat(6);
             body.y = rs->getFloat(7);
             body.z = rs->getFloat(8);
@@ -402,9 +416,11 @@ int main(void) {
 
         conn->terminateStatement(stmt);
         stmt = nullptr;
+
     }
     catch (SQLException& ex) {
         cout << "Error: " << ex.getMessage() << endl;
+        return -1;
     }
 
     // Initialize GLFW
@@ -444,13 +460,18 @@ int main(void) {
     // Solar system selection
     static int selectedSolarSystemIndex = 0;
     vector<string> solarSystemNames = fetchSolarSystemNames(conn); // Fetch names from database
+
+    //Load initial solar system
     if (!solarSystemNames.empty()) {
         updateBodies(conn, selectedSolarSystemIndex + 1, bodiesVector);
+
+        //Convert Vector to Array
         numBodies = bodiesVector.size();
         bodies = new CelestialBody[numBodies];
-        for (int i = 0; i < numBodies; ++i) {
+        for (int i = 0; i < numBodies; i++) {
             bodies[i] = bodiesVector[i];
         }
+
         initializeOrbitalVelocities(bodiesVector);
     }
 
@@ -480,6 +501,7 @@ int main(void) {
 
         // GUI elements
         ImGui::SliderFloat("Zoom", &zoomLevel, 10.0f, 90.0f);
+
         // Solar system selection
         if (!solarSystemNames.empty()) {
             const char* combo_preview_value = solarSystemNames[selectedSolarSystemIndex].c_str();
@@ -500,13 +522,13 @@ int main(void) {
             updateBodies(conn, selectedSolarSystemIndex + 1, bodiesVector); // +1 because SolarSystemID starts from 1
             previousSolarSystemIndex = selectedSolarSystemIndex;
 
-            // Convert the vector to a C-style array
-            delete[] bodies;  // Free the old array
+            delete[] bodies;
             numBodies = bodiesVector.size();
             bodies = new CelestialBody[numBodies];
-            for (int i = 0; i < numBodies; ++i) {
+            for (int i = 0; i < numBodies; i++) {
                 bodies[i] = bodiesVector[i];
             }
+
             initializeOrbitalVelocities(bodiesVector);
         }
 
@@ -560,5 +582,6 @@ int main(void) {
         }
     }
 
+    delete[] bodies; //Cleanup
     return 0;
 }
