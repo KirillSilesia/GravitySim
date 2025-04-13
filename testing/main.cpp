@@ -218,6 +218,7 @@ void reshape(GLFWwindow* window, int width, int height) {
 
 
 // Function to update the positions and velocities of celestial bodies based on gravity
+// Function to update the positions and velocities of celestial bodies based on gravity
 void updatePositionsAndVelocities(vector<CelestialBody>& bodies, float deltaTime) {
     // Temporary arrays to store acceleration values
     vector<glm::vec3> accelerations(bodies.size(), glm::vec3(0.0f));
@@ -231,13 +232,13 @@ void updatePositionsAndVelocities(vector<CelestialBody>& bodies, float deltaTime
                 CelestialBody& body2 = bodies[j];
 
                 // Calculate the distance vector from body1 to body2
-                glm::vec3 r_vec = glm::vec3(body2.x - body1.x, 0, body2.z - body1.z); // 2D distance ignoring y-axis
+                glm::vec3 r_vec = glm::vec3(body2.x - body1.x, body2.y - body1.y, body2.z - body1.z); // 3D distance
                 float r2 = glm::dot(r_vec, r_vec);  // r squared
 
                 if (r2 < 1e-6f) continue;  // Avoid division by zero or too small values
 
                 float r_dist = sqrt(r2);  // Scalar distance between the bodies
-                float force = G * body1.mass * body2.mass / r2;  // Gravitational force magnitude
+                float force = (G * body1.mass * body2.mass) / r2;  // Gravitational force magnitude
 
                 // Calculate acceleration due to the gravitational force (Newton's 2nd law: F = ma)
                 glm::vec3 acceleration = (force / body1.mass) * glm::normalize(r_vec); // Normalize the direction
@@ -254,13 +255,16 @@ void updatePositionsAndVelocities(vector<CelestialBody>& bodies, float deltaTime
 
         // Update velocity
         body.vx += accelerations[i].x * deltaTime;
+        body.vy += accelerations[i].y * deltaTime;
         body.vz += accelerations[i].z * deltaTime;
 
-        // Update position
+        // Update position using the velocity
         body.x += body.vx * deltaTime;
+        body.y += body.vy * deltaTime;
         body.z += body.vz * deltaTime;
     }
 }
+
 
 void initializeOrbitalVelocities(vector<CelestialBody>& bodies) {
     glm::vec3 CoM = calculateCenterOfMass(bodies);
