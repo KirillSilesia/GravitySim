@@ -8,6 +8,8 @@
 #include <cmath>
 #include <vector>
 #include <iostream>
+#include <string>
+#include <limits>
 #include <glm/glm.hpp>
 #pragma managed(push, off)
 #include <occi.h>
@@ -33,6 +35,27 @@ int starCounter;
 struct Vector3 {
     float x, y, z;
 };
+
+struct DatabaseParams {
+    std::string user;
+    std::string password;
+    std::string connectString;
+};
+
+DatabaseParams getDatabaseParams() {
+    DatabaseParams params;
+
+    std::cout << "Enter database username: ";
+    std::getline(std::cin, params.user);
+
+    std::cout << "Enter database password: ";
+    std::getline(std::cin, params.password);
+
+    std::cout << "Enter database connect string (e.g., //111.111.111.11:1111/SID): ";
+    std::getline(std::cin, params.connectString);
+
+    return params;
+}
 
 // Structure to represent celestial bodies
 struct CelestialBody {
@@ -386,6 +409,7 @@ void updateBodies(Connection* conn, int solarSystemID, vector<CelestialBody>& bo
 }
 
 int main(void) {
+	DatabaseParams dbParams = getDatabaseParams(); // Get database parameters from user input
     Environment* env = nullptr;
     Connection* conn = nullptr;
     Statement* stmt = nullptr;
@@ -398,9 +422,9 @@ int main(void) {
 
     try {
         // Database Connection
-        string user = "msbd15";
-        string password = "haslo2025";
-        string connectString = "//155.158.112.45:1521/oltpstud"; // Replace with your values
+        string user = dbParams.user;
+        string password = dbParams.password;
+        string connectString = dbParams.connectString; // Replace with your values
 
         env = Environment::createEnvironment(Environment::DEFAULT);
         conn = env->createConnection(user, password, connectString);
