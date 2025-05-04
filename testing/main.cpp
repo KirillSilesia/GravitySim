@@ -2,6 +2,10 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#define _CRT_SECURE_NO_DEPRECATE
+#define _CRT_SECURE_NO_WARNINGS
+#define OCCI_DEMO_NEED_IMPORT
+#include "GL/glew.h"
 #include <GLFW/glfw3.h>
 #include <GL/gl.h>
 #include <GL/glu.h>
@@ -9,14 +13,17 @@
 #include <vector>
 #include <iostream>
 #include <string>
+#include <algorithm>
+#include <fstream>
 #include <limits>
 #include <glm/glm.hpp>
 #pragma managed(push, off)
 #include <occi.h>
 #include <oratypes.h>
 #pragma managed(pop)
-#define OCCI_DEMO_NEED_IMPORT
-#define _CRT_SECURE_NO_DEPRECATE
+#define STBI_NO_PKM
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 using namespace std;
 using namespace oracle::occi;
@@ -28,13 +35,21 @@ double lastRightX = 320.0, lastRightY = 240.0;  // Right mouse position for drag
 float pitch = 0.0f, yaw = -90.0f; // Camera rotation angles
 bool isDragging = false;         // Flag for left mouse button hold
 bool isRightDragging = false;    // Flag for right mouse button hold
-// Place camera far enough from center-of-mass – we will recenter on the system’s COM below.
+// Place camera far enough from center-of-mass â€“ we will recenter on the systemâ€™s COM below.
 float cameraX = 0.0f, cameraY = 0.0f, cameraZ = -30.0f;
 int starCounter;
 
 struct Vector3 {
     float x, y, z;
 };
+
+// Function to get the base directory of a project
+std::string getExecutablePath() {
+    char buffer[MAX_PATH];
+    GetModuleFileNameA(NULL, buffer, MAX_PATH);
+    std::string::size_type pos = std::string(buffer).find_last_of("\\/");
+    return std::string(buffer).substr(0, pos);
+}
 
 struct DatabaseParams {
     std::string user;
@@ -57,24 +72,13 @@ DatabaseParams getDatabaseParams() {
 struct CelestialBody {
     string BodyName;
     string BodyType;
-    float x, y, z;     // Position
-    float size;        // Size
-    float mass;        // Mass
-    float color[3];    // Color
-    float vx, vy, vz;  // Velocity
+    float x, y, z;
+    float size;
+    float mass;
+    GLuint textureID;
+    float vx, vy, vz;
     bool isStar;
 };
-
-// Function to draw a celestial body (sphere)
-void drawSphere(float radius, float x, float y, float z, const float* color) {
-    glPushMatrix();
-    glTranslatef(x, y, z);  // Move the sphere to its position
-    glColor3f(color[0], color[1], color[2]);
-    GLUquadric* quadric = gluNewQuadric();
-    gluSphere(quadric, radius, 20, 20);
-    gluDeleteQuadric(quadric);
-    glPopMatrix();
-}
 
 // Function to draw the gravity grid (for visualization purposes)
 void drawGravityGrid(int gridSize, float lineSpacing, vector<CelestialBody>& bodies) {
@@ -295,7 +299,8 @@ void initializeOrbitalVelocities(vector<CelestialBody>& bodies) {
             star->vx = -dz / r * orbitalSpeed;
             star->vz = dx / r * orbitalSpeed;
         }
-    } else if (stars.size() == 1) {
+    }
+    else if (stars.size() == 1) {
         stars[0]->vx = stars[0]->vy = stars[0]->vz = 0.0f;
     }
 }
@@ -317,67 +322,186 @@ GLFWwindow* initializeOpenGL() {
     return window;
 }
 
+std::string getTextureFileForBody(const std::string& bodyName, const std::string& bodyType) {
+    std::string name = bodyName;
+    std::transform(name.begin(), name.end(), name.begin(), ::tolower);
+    const std::string folder = (bodyType == "Star")
+        ? "Textures/Star_Textures/"
+        : "Textures/Planet_Textures/";
+    std::string candidate = folder + name + ".jpg";
+
+    // Use the executable path for the existence check
+    std::string exeFolder = getExecutablePath();
+    std::string fullCandidate = exeFolder + "\\" + candidate;
+
+    if (std::ifstream(fullCandidate, std::ios::binary)) {
+        return candidate;
+    }
+    else {
+        std::cerr << "Texture not found: " << candidate << " - using default\n";
+        return (bodyType == "Star")
+            ? "Textures/Star_Textures/default_star.jpg"
+            : "Textures/Planet_Textures/default_planet.jpg";
+    }
+}
+
+GLuint loadTexture(const std::string& fullPath) {
+    int w, h, channels;
+    unsigned char* data = stbi_load(fullPath.c_str(), &w, &h, &channels, 0);
+    if (!data) {
+        std::cerr << "Failed to load " << fullPath << "\n";
+        return 0;
+    }
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    GLenum fmt = (channels == 4 ? GL_RGBA :
+        channels == 3 ? GL_RGB :
+        GL_RED);
+    glTexImage2D(GL_TEXTURE_2D, 0, fmt, w, h, 0, fmt, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+
+    stbi_image_free(data);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    return tex;
+}
+
+void drawSphere(float radius, float x, float y, float z, GLuint textureID) {
+    glPushMatrix();
+    glTranslatef(x, y, z);
+
+    if (textureID != 0) {
+        glEnable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, textureID);
+    }
+    else {
+        glDisable(GL_TEXTURE_2D);
+    }
+
+    GLUquadric* quadric = gluNewQuadric();
+    gluQuadricTexture(quadric, textureID != 0 ? GL_TRUE : GL_FALSE);
+    gluQuadricNormals(quadric, GLU_SMOOTH);
+    gluSphere(quadric, radius, 32, 32);
+    gluDeleteQuadric(quadric);
+
+    if (textureID != 0) {
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glDisable(GL_TEXTURE_2D);
+    }
+
+    glPopMatrix();
+}
+
 // Database fetch functions remain unchanged but add logging for debugging.
-vector<string> fetchSolarSystemNames(Connection* conn) {
-    vector<string> solarSystemNames;
-    Statement* stmt = nullptr;
-    ResultSet* rs = nullptr;
-    try {
-        stmt = conn->createStatement();
-        stmt->setSQL("SELECT SolarSystemName FROM SolarSystems");
-        rs = stmt->executeQuery();
-        while (rs->next()) {
-            solarSystemNames.push_back(rs->getString(1));
-        }
-        conn->terminateStatement(stmt);
+vector<pair<int, string>> fetchSolarSystems(Connection* conn) {
+    vector<pair<int, string>> systems;
+    Statement* stmt = conn->createStatement();
+    stmt->setSQL("SELECT SolarSystemID, SolarSystemName FROM SolarSystems ORDER BY SolarSystemID");
+    ResultSet* rs = stmt->executeQuery();
+    while (rs->next()) {
+        int   id = rs->getInt(1);
+        auto  name = rs->getString(2);
+        systems.emplace_back(id, name);
     }
-    catch (SQLException& ex) {
-        cout << "Error fetching solar system names: " << ex.getMessage() << endl;
-    }
-    return solarSystemNames;
+    conn->terminateStatement(stmt);
+    return systems;
 }
 
 vector<CelestialBody> fetchCelestialBodies(Connection* conn, int solarSystemID) {
     vector<CelestialBody> celestialBodies;
     Statement* stmt = nullptr;
     ResultSet* rs = nullptr;
+    // debug: how many rows *should* there be?
+    {
+        Statement* cstmt = conn->createStatement();
+        cstmt->setSQL(
+            "SELECT COUNT(*) FROM CelestialBodies WHERE SolarSystemID = :1"
+        );
+        cstmt->setInt(1, solarSystemID);
+        ResultSet* crs = cstmt->executeQuery();
+        if (crs->next()) {
+            std::cout
+                << "DEBUG: DB says "
+                << crs->getInt(1)
+                << " bodies for SolarSystemID="
+                << solarSystemID
+                << "\n";
+        }
+        conn->terminateStatement(cstmt);
+    }
     try {
         stmt = conn->createStatement();
-        stmt->setSQL("SELECT BodyName, BodyType, Mass, BodySize, Color, X, Y, Z, VX, VY, VZ, IsStar FROM CelestialBodies WHERE SolarSystemID = :1");
+        stmt->setSQL("SELECT BodyName, BodyType, Mass, BodySize, X, Y, Z, VX, VY, VZ, IsStar FROM CelestialBodies WHERE SolarSystemID = :1");
         stmt->setInt(1, solarSystemID);
         rs = stmt->executeQuery();
+
         while (rs->next()) {
             CelestialBody body;
             body.BodyName = rs->getString(1);
             body.BodyType = rs->getString(2);
             body.mass = rs->getDouble(3);
             body.size = rs->getFloat(4);
-            string colorStr = rs->getString(5);
-            float r, g, b;
-            if (sscanf_s(colorStr.c_str(), "%f,%f,%f", &r, &g, &b) == 3) {
-                body.color[0] = r;
-                body.color[1] = g;
-                body.color[2] = b;
-            }
-            else {
-                body.color[0] = 1.0f;
-                body.color[1] = 1.0f;
-                body.color[2] = 1.0f;
-                cout << "Failed to parse color string: " << colorStr << endl;
-            }
-            body.x = rs->getFloat(6);
-            body.y = rs->getFloat(7);
-            body.z = rs->getFloat(8);
-            body.vx = rs->getFloat(9);
-            body.vy = rs->getFloat(10);
-            body.vz = rs->getFloat(11);
-            body.isStar = rs->getInt(12) == 1;
+            body.x = rs->getFloat(5);
+            body.y = rs->getFloat(6);
+            body.z = rs->getFloat(7);
+            body.vx = rs->getFloat(8);
+            body.vy = rs->getFloat(9);
+            body.vz = rs->getFloat(10);
+            body.isStar = rs->getInt(11) == 1;
+
+            std::string name = body.BodyName;
+            std::string type = body.BodyType;
+            std::string relPath = getTextureFileForBody(name, type);
+            std::string exeFolder = getExecutablePath();
+
+            // Load the texture (assuming this code exists but was cut off)
+            body.textureID = loadTexture(exeFolder + "\\" + relPath);
+
+            // Add this line to store the body in the vector
             celestialBodies.push_back(body);
         }
-        conn->terminateStatement(stmt);
+        if (rs) {
+            stmt->closeResultSet(rs);
+            rs = nullptr;
+        }
+        if (stmt) {
+            conn->terminateStatement(stmt);
+            stmt = nullptr;
+        }
     }
-    catch (SQLException& ex) {
-        cout << "Error fetching celestial bodies: " << ex.getMessage() << endl;
+    catch (SQLException& e) {
+        std::cerr << "Database error: " << e.getMessage() << std::endl;
+        // Clean up if error occurred
+        if (rs) {
+            try { stmt->closeResultSet(rs); }
+            catch (...) {}
+            rs = nullptr;
+        }
+        if (stmt) {
+            try { conn->terminateStatement(stmt); }
+            catch (...) {}
+            stmt = nullptr;
+        }
+    }
+    catch (std::exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        // Clean up if error occurred
+        if (rs) {
+            try { stmt->closeResultSet(rs); }
+            catch (...) {}
+            rs = nullptr;
+        }
+        if (stmt) {
+            try { conn->terminateStatement(stmt); }
+            catch (...) {}
+            stmt = nullptr;
+        }
     }
     return celestialBodies;
 }
@@ -395,12 +519,7 @@ int main(void) {
     DatabaseParams dbParams = getDatabaseParams();
     Environment* env = nullptr;
     Connection* conn = nullptr;
-    Statement* stmt = nullptr;
-    ResultSet* rs = nullptr;
     GLFWwindow* window = nullptr;
-    vector<CelestialBody> bodiesVector;
-    int numBodies = 0;
-    CelestialBody* bodies = nullptr;
 
     try {
         string user = dbParams.user;
@@ -410,17 +529,14 @@ int main(void) {
         conn = env->createConnection(user, password, connectString);
         cout << "Connected to the database!" << endl;
 
-        stmt = conn->createStatement();
+        // Test query
+        Statement* stmt = conn->createStatement();
         stmt->setSQL("SELECT 1 FROM DUAL");
-        rs = stmt->executeQuery();
+        ResultSet* rs = stmt->executeQuery();
         if (rs->next()) {
             cout << "Database test query successful: " << rs->getInt(1) << endl;
         }
-        else {
-            cout << "Database test query failed." << endl;
-        }
         conn->terminateStatement(stmt);
-        stmt = nullptr;
     }
     catch (SQLException& ex) {
         cout << "Error: " << ex.getMessage() << endl;
@@ -436,6 +552,7 @@ int main(void) {
         return -1;
     }
     glfwMakeContextCurrent(window);
+    glewInit();
     glfwSwapInterval(1);
     glfwSetFramebufferSizeCallback(window, reshape);
     glfwSetScrollCallback(window, scroll_callback);
@@ -457,20 +574,19 @@ int main(void) {
     ImGui_ImplOpenGL3_Init("#version 130");
 
     float lastTime = glfwGetTime();
-    float dt = 0.01f;   // delta time for simulation (in seconds)
+    float dt = 0.01f;
 
-    static int selectedSolarSystemIndex = 0;
-    vector<string> solarSystemNames = fetchSolarSystemNames(conn);
+    // --- Solar System Selection Logic ---
+    auto systems = fetchSolarSystems(conn);
+    int selectedIndex = 0; // Current selection in the combo
+    int previousIndex = -1; // Previous selection to detect changes
 
-    // Load initial solar system (if available)
-    if (!solarSystemNames.empty()) {
-        updateBodies(conn, selectedSolarSystemIndex + 1, bodiesVector);
-        numBodies = bodiesVector.size();
-        cout << "Loaded " << numBodies << " bodies" << endl;
+    // Load the initial system
+    vector<CelestialBody> bodiesVector;
+    if (!systems.empty()) {
+        bodiesVector = fetchCelestialBodies(conn, systems[selectedIndex].first);
         initializeOrbitalVelocities(bodiesVector);
     }
-
-    static int previousSolarSystemIndex = -1;
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -478,7 +594,7 @@ int main(void) {
         dt = currentTime - lastTime;
         lastTime = currentTime;
 
-        // Update ImGui
+        // --- IMGUI UI ---
         ImGui_ImplGlfw_NewFrame();
         ImGui_ImplOpenGL3_NewFrame();
         ImGui::NewFrame();
@@ -491,17 +607,18 @@ int main(void) {
             ImGuiWindowFlags_NoResize |
             ImGuiWindowFlags_NoMove |
             ImGuiWindowFlags_NoCollapse);
+
         ImGui::SliderFloat("Zoom", &zoomLevel, 10.0f, 90.0f);
 
-        if (!solarSystemNames.empty()) {
-            const char* combo_preview_value = solarSystemNames[selectedSolarSystemIndex].c_str();
-            if (ImGui::BeginCombo("Solar System", combo_preview_value)) {
-                for (int n = 0; n < solarSystemNames.size(); n++) {
-                    bool is_selected = (selectedSolarSystemIndex == n);
-                    if (ImGui::Selectable(solarSystemNames[n].c_str(), is_selected)) {
-                        selectedSolarSystemIndex = n;
+        if (!systems.empty()) {
+            const char* comboPreview = systems[selectedIndex].second.c_str();
+            if (ImGui::BeginCombo("Solar System", comboPreview)) {
+                for (int n = 0; n < (int)systems.size(); n++) {
+                    const bool isSelected = (selectedIndex == n);
+                    if (ImGui::Selectable(systems[n].second.c_str(), isSelected)) {
+                        selectedIndex = n; // Update selection immediately
                     }
-                    if (is_selected)
+                    if (isSelected)
                         ImGui::SetItemDefaultFocus();
                 }
                 ImGui::EndCombo();
@@ -509,14 +626,14 @@ int main(void) {
         }
         ImGui::End();
 
-        // Only update the bodies if a new system is selected.
-        if (selectedSolarSystemIndex != previousSolarSystemIndex) {
-            // SolarSystemID is assumed to be (index + 1)
-            updateBodies(conn, selectedSolarSystemIndex + 1, bodiesVector);
+        // --- Handle Selection Change ---
+        if (selectedIndex != previousIndex && !systems.empty()) {
+            bodiesVector = fetchCelestialBodies(conn, systems[selectedIndex].first);
             initializeOrbitalVelocities(bodiesVector);
-            previousSolarSystemIndex = selectedSolarSystemIndex;
+            previousIndex = selectedIndex;
         }
 
+        // --- Simulation & Rendering ---
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glMatrixMode(GL_PROJECTION);
@@ -525,7 +642,6 @@ int main(void) {
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
 
-        // Recenter the scene based on the system’s center-of-mass.
         glm::vec3 systemCoM = calculateCenterOfMass(bodiesVector);
         glTranslatef(-systemCoM.x + cameraX, -systemCoM.y + cameraY, cameraZ);
         glRotatef(pitch, 1.0f, 0.0f, 0.0f);
@@ -534,9 +650,8 @@ int main(void) {
         drawGravityGrid(100, 0.25f, bodiesVector);
         updatePositionsAndVelocities(bodiesVector, dt);
 
-        // Draw each celestial body.
         for (const auto& body : bodiesVector) {
-            drawSphere(body.size, body.x, body.y, body.z, body.color);
+            drawSphere(body.size, body.x, body.y, body.z, body.textureID);
         }
 
         ImGui::Render();
@@ -544,6 +659,7 @@ int main(void) {
         glfwSwapBuffers(window);
     }
 
+    // --- Cleanup ---
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
