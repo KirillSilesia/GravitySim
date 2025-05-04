@@ -35,9 +35,10 @@ double lastRightX = 320.0, lastRightY = 240.0;  // Right mouse position for drag
 float pitch = 0.0f, yaw = -90.0f; // Camera rotation angles
 bool isDragging = false;         // Flag for left mouse button hold
 bool isRightDragging = false;    // Flag for right mouse button hold
-// Place camera far enough from center-of-mass â€“ we will recenter on the systemâ€™s COM below.
 float cameraX = 0.0f, cameraY = 0.0f, cameraZ = -30.0f;
 int starCounter;
+enum CameraFocusType { FOCUS_COM = 0, FOCUS_OBJECT = 1 };
+int cameraFocusIndex = 0; // 0 = COM, 1..N = celestial body index + 1
 
 struct Vector3 {
     float x, y, z;
@@ -522,6 +523,7 @@ int main(void) {
     Environment* env = nullptr;
     Connection* conn = nullptr;
     GLFWwindow* window = nullptr;
+    int cameraFocusIndex = 0;
 
     try {
         string user = dbParams.user;
@@ -626,6 +628,39 @@ int main(void) {
                 ImGui::EndCombo();
             }
         }
+
+        if (!bodiesVector.empty()) {
+            static std::vector<std::string> focusOptions;
+            focusOptions.clear();
+            focusOptions.push_back("Center of Mass (COM)");
+            for (const auto& body : bodiesVector)
+                focusOptions.push_back(body.BodyName);
+
+            // Directly use cameraFocusIndex for selection so it stays synced
+            if (ImGui::Combo("Camera Center", &cameraFocusIndex,
+                [](void* data, int idx, const char** out_text) {
+                    const auto& opts = *static_cast<const std::vector<std::string>*>(data);
+                    *out_text = opts[idx].c_str();
+                    return true;
+                }, static_cast<void*>(&focusOptions), (int)focusOptions.size()))
+            {
+                // cameraFocusIndex updated automatically by ImGui
+            }
+
+            // Calculate the current target position dynamically
+            glm::vec3 target;
+            if (cameraFocusIndex == 0) {
+                target = calculateCenterOfMass(bodiesVector);
+                ImGui::Text("Camera centered on: COM (%.2f, %.2f, %.2f)", target.x, target.y, target.z);
+            }
+            else {
+                const auto& body = bodiesVector[cameraFocusIndex - 1];
+                target = glm::vec3(body.x, body.y, body.z);
+                ImGui::Text("Camera centered on: %s (%.2f, %.2f, %.2f)",
+                    body.BodyName.c_str(), target.x, target.y, target.z);
+            }
+        }
+
         ImGui::End();
 
         // --- Handle Selection Change ---
@@ -641,14 +676,37 @@ int main(void) {
         glMatrixMode(GL_PROJECTION);
         glLoadIdentity();
         gluPerspective(zoomLevel, 640.0f / 480.0f, 0.1f, 1000.0f);
+
+        // --- Camera Centering Logic ---
+        glm::vec3 focusPos;
+        if (cameraFocusIndex == 0) {
+            focusPos = calculateCenterOfMass(bodiesVector);
+        }
+        else {
+            const auto& body = bodiesVector[cameraFocusIndex - 1];
+            focusPos = glm::vec3(body.x, body.y, body.z);
+        }
+
+        float distance = zoomLevel;
+        float pitchRad = glm::radians(pitch);
+        float yawRad = glm::radians(yaw);
+
+        glm::vec3 cameraOffset;
+        cameraOffset.x = distance * cos(pitchRad) * cos(yawRad);
+        cameraOffset.y = distance * sin(pitchRad);
+        cameraOffset.z = distance * cos(pitchRad) * sin(yawRad);
+
+        glm::vec3 cameraPos = focusPos + cameraOffset;
+
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
+        gluLookAt(
+            cameraPos.x, cameraPos.y, cameraPos.z,
+            focusPos.x, focusPos.y, focusPos.z,
+            0.0f, 1.0f, 0.0f
+        );
 
-        glm::vec3 systemCoM = calculateCenterOfMass(bodiesVector);
-        glTranslatef(-systemCoM.x + cameraX, -systemCoM.y + cameraY, cameraZ);
-        glRotatef(pitch, 1.0f, 0.0f, 0.0f);
-        glRotatef(yaw, 0.0f, 1.0f, 0.0f);
-
+        // Now draw your scene as usual:
         drawGravityGrid(100, 0.25f, bodiesVector);
         updatePositionsAndVelocities(bodiesVector, dt);
 
