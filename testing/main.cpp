@@ -376,6 +376,8 @@ void drawSphere(float radius, float x, float y, float z, GLuint textureID) {
     glPushMatrix();
     glTranslatef(x, y, z);
 
+    glRotatef(90.0f, 1.0f, 0.0f, 0.0f);
+
     if (textureID != 0) {
         glEnable(GL_TEXTURE_2D);
         glBindTexture(GL_TEXTURE_2D, textureID);
