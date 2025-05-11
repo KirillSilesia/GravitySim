@@ -96,6 +96,7 @@
     <None Include="vendor\ImGui\backends\imgui_impl_metal.mm" />
     <None Include="vendor\ImGui\backends\imgui_impl_osx.mm" />
     <None Include="x64\glfw3.dll" />
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="vendor\ImGui\LICENSE.txt" />

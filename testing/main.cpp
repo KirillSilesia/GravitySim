@@ -39,6 +39,8 @@ float cameraX = 0.0f, cameraY = 0.0f, cameraZ = -30.0f;
 int starCounter;
 enum CameraFocusType { FOCUS_COM = 0, FOCUS_OBJECT = 1 };
 int cameraFocusIndex = 0; // 0 = COM, 1..N = celestial body index + 1
+bool isManMade = false;
+static bool showCreateObjectModal = false;
 
 struct Vector3 {
     float x, y, z;
@@ -53,9 +55,9 @@ std::string getExecutablePath() {
 }
 
 struct DatabaseParams {
-    std::string user;
-    std::string password;
-    std::string connectString;
+    string user;
+    string password;
+    string connectString;
 };
 
 DatabaseParams getDatabaseParams() {
@@ -81,6 +83,12 @@ struct CelestialBody {
     bool isStar;
     float rotationAngle;    // Current rotation angle in degrees
     float rotationSpeed;    // Rotation speed in degrees per second
+};
+
+struct SolarSystemInfo {
+    int id;
+    std::string name;
+    int isManMade;
 };
 
 // Function to draw the gravity grid (for visualization purposes)
@@ -404,15 +412,17 @@ void drawSphere(float radius, float x, float y, float z, GLuint textureID, float
 }
 
 // Database fetch functions remain unchanged but add logging for debugging.
-vector<pair<int, string>> fetchSolarSystems(Connection* conn) {
-    vector<pair<int, string>> systems;
+std::vector<SolarSystemInfo> fetchSolarSystems(Connection* conn) {
+    std::vector<SolarSystemInfo> systems;
     Statement* stmt = conn->createStatement();
     stmt->setSQL("SELECT SolarSystemID, SolarSystemName, isManMade FROM SolarSystems ORDER BY SolarSystemID");
     ResultSet* rs = stmt->executeQuery();
     while (rs->next()) {
-        int   id = rs->getInt(1);
-        auto  name = rs->getString(2);
-        systems.emplace_back(id, name);
+        SolarSystemInfo info;
+        info.id = rs->getInt(1);
+        info.name = rs->getString(2);
+        info.isManMade = rs->getInt(3);
+        systems.push_back(info);
     }
     conn->terminateStatement(stmt);
     return systems;
@@ -530,9 +540,8 @@ void updateRotations(vector<CelestialBody>& bodies, float dt) {
     }
 }
 
-
 int main(void) {
-    DatabaseParams dbParams = getDatabaseParams();
+    //DatabaseParams dbParams = getDatabaseParams();
     Environment* env = nullptr;
     Connection* conn = nullptr;
     GLFWwindow* window = nullptr;
@@ -540,11 +549,13 @@ int main(void) {
     static bool creatingNewSystem = false;
     static char newSystemName[128] = "";
     static std::string creationError = "";
+    static bool simulationActive = true;
 
     try {
-        string user = dbParams.user;
-        string password = dbParams.password;
-        string connectString = dbParams.connectString;
+        DatabaseParams params = getDatabaseParams();
+        string user = params.user;
+        string password = params.password;
+        string connectString = params.connectString;
         env = Environment::createEnvironment(Environment::DEFAULT);
         conn = env->createConnection(user, password, connectString);
         cout << "Connected to the database!" << endl;
@@ -604,7 +615,7 @@ int main(void) {
     // Load the initial system
     vector<CelestialBody> bodiesVector;
     if (!systems.empty()) {
-        bodiesVector = fetchCelestialBodies(conn, systems[selectedIndex].first);
+        bodiesVector = fetchCelestialBodies(conn, systems[selectedIndex].id);
         initializeOrbitalVelocities(bodiesVector);
     }
 
@@ -630,10 +641,53 @@ int main(void) {
 
         ImGui::SliderFloat("Zoom", &zoomLevel, 10.0f, 90.0f);
 
+        if (ImGui::Button("Stop")) {
+            simulationActive = false;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Resume")) {
+            simulationActive = true;
+        }
+
+        if (ImGui::Button("Reset")) {
+            if (!systems.empty() && selectedIndex >= 0 && selectedIndex < systems.size()) {
+                bodiesVector = fetchCelestialBodies(conn, systems[selectedIndex].id);
+            }
+        }
+
         if (ImGui::Button("New Solar System")) {
             creatingNewSystem = true;
             newSystemName[0] = '\0';
             creationError.clear();
+        }
+
+        if (!systems.empty() && selectedIndex >= 0 && selectedIndex < systems.size()) {
+            isManMade = (systems[selectedIndex].isManMade == 1);
+        }
+
+        if (isManMade) {
+            if (ImGui::Button("Add New Object")) {
+                showCreateObjectModal = true;
+            }
+        }
+
+        if (!systems.empty() && creatingNewSystem) {
+            ImGui::SameLine();
+            if (ImGui::Button("Delete")) {
+                // Delete the selected system
+                try {
+                    Statement* stmt = conn->createStatement();
+                    stmt->setSQL("DELETE FROM SolarSystems WHERE SolarSystemID = :1");
+                    stmt->setInt(1, systems[selectedIndex].id);
+                    stmt->executeUpdate();
+                    conn->commit();
+                    conn->terminateStatement(stmt);
+                    systems = fetchSolarSystems(conn);
+                }
+                catch (SQLException& e) {
+                    std::cerr << "DB error: " << e.getMessage() << std::endl;
+                }
+            }
         }
 
         // When user clicks the button, show an input field and confirm/cancel buttons
@@ -643,8 +697,15 @@ int main(void) {
             ImGui::SameLine();
             if (ImGui::Button("Create")) {
                 std::string sysName = newSystemName;
-                if (sysName.empty()) {
-                    creationError = "Name cannot be empty.";
+				// Check if the system name already exists
+				bool nameExists = false;
+                for (const auto& system : systems) {
+                    if (system.name == sysName) {
+                        nameExists = true;
+                    }
+                }
+                if (sysName.empty() || sysName.length() > 30 || nameExists == true) {
+                    creationError = "Name error";
                 }
                 else {
                     // Insert new system into database
@@ -688,13 +749,12 @@ int main(void) {
             }
         }
 
-
         if (!systems.empty()) {
-            const char* comboPreview = systems[selectedIndex].second.c_str();
+            const char* comboPreview = systems[selectedIndex].name.c_str();
             if (ImGui::BeginCombo("Solar System", comboPreview)) {
                 for (int n = 0; n < (int)systems.size(); n++) {
                     const bool isSelected = (selectedIndex == n);
-                    if (ImGui::Selectable(systems[n].second.c_str(), isSelected)) {
+                    if (ImGui::Selectable(systems[n].name.c_str(), isSelected)) {
                         selectedIndex = n; // Update selection immediately
                     }
                     if (isSelected)
@@ -738,9 +798,75 @@ int main(void) {
 
         ImGui::End();
 
+        if (showCreateObjectModal) {
+            ImGui::OpenPopup("Create New Object");
+            showCreateObjectModal = false;
+        }
+
+        if (ImGui::BeginPopupModal("Create New Object", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+            static char name[64] = "";
+            static char type[16] = "Planet";
+            static float mass = 0.001f;
+            static float size = 0.01f;
+            static float x = 0.0f, y = 0.0f, z = 0.0f;
+            static float vx = 0.0f, vy = 0.0f, vz = 0.0f;
+            static bool isStar = false;
+            static float rotationAngle = 0.0f;
+            static float rotationSpeed = 20.0f;
+
+            ImGui::InputText("Name", name, IM_ARRAYSIZE(name));
+            ImGui::InputText("Type", type, IM_ARRAYSIZE(type));
+            ImGui::InputFloat("Mass", &mass);
+            ImGui::InputFloat("Size", &size);
+            ImGui::InputFloat3("Position (x,y,z)", &x);
+            ImGui::InputFloat3("Velocity (vx,vy,vz)", &vx);
+            ImGui::Checkbox("Is Star", &isStar);
+            ImGui::InputFloat("Rotation Angle", &rotationAngle);
+            ImGui::InputFloat("Rotation Speed", &rotationSpeed);
+
+            if (ImGui::Button("Add")) {
+                try {
+                    Statement* stmt = conn->createStatement();
+                    stmt->setSQL(
+                        "INSERT INTO CelestialBodies (CelestialBodyID, SolarSystemID, BodyName, BodyType, Mass, BodySize, X, Y, Z, VX, VY, VZ, IsStar, rotationAngle, rotationSpeed) "
+                        "VALUES (CELESTIALBODY_SEQ.NEXTVAL, :1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11, :12, :13, :14)"
+                    );
+                    stmt->setInt(1, systems[selectedIndex].id);
+                    stmt->setString(2, name);
+                    stmt->setString(3, type);
+                    stmt->setFloat(4, mass);
+                    stmt->setFloat(5, size);
+                    stmt->setFloat(6, x);
+                    stmt->setFloat(7, y);
+                    stmt->setFloat(8, z);
+                    stmt->setFloat(9, vx);
+                    stmt->setFloat(10, vy);
+                    stmt->setFloat(11, vz);
+                    stmt->setInt(12, isStar ? 1 : 0);
+                    stmt->setFloat(13, rotationAngle);
+                    stmt->setFloat(14, rotationSpeed);
+                    stmt->executeUpdate();
+					conn->commit();
+                    conn->terminateStatement(stmt);
+
+                    bodiesVector = fetchCelestialBodies(conn, systems[selectedIndex].id);
+                }
+                catch (SQLException& e) {
+                    std::cerr << "Failed to add new object: " << e.getMessage() << std::endl;
+                }
+                ImGui::CloseCurrentPopup();
+            }
+
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel")) {
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+
         // --- Handle Selection Change ---
         if (selectedIndex != previousIndex && !systems.empty()) {
-            bodiesVector = fetchCelestialBodies(conn, systems[selectedIndex].first);
+            bodiesVector = fetchCelestialBodies(conn, systems[selectedIndex].id);
             initializeOrbitalVelocities(bodiesVector);
             previousIndex = selectedIndex;
         }
@@ -797,8 +923,10 @@ int main(void) {
 
 
         drawGravityGrid(100, 0.25f, bodiesVector);
-        updatePositionsAndVelocities(bodiesVector, dt);
-		updateRotations(bodiesVector, dt);
+        if (simulationActive) {
+            updatePositionsAndVelocities(bodiesVector, dt);
+            updateRotations(bodiesVector, dt);
+        };
 
         for (const auto& body : bodiesVector) {
             drawSphere(body.size, body.x, body.y, body.z, body.textureID, body.rotationAngle);
