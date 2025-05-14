@@ -94,7 +94,7 @@ struct SolarSystemInfo {
 // Function to draw the gravity grid (for visualization purposes)
 void drawGravityGrid(int gridSize, float lineSpacing, vector<CelestialBody>& bodies) {
     int numLines = gridSize / lineSpacing;
-    float gravityScale = 50.f;
+    float gravityScale = 100.f;
 
     glColor3f(0.9f, 0.9f, 0.9f);
     glBegin(GL_LINES);
@@ -313,6 +313,29 @@ void initializeOrbitalVelocities(vector<CelestialBody>& bodies) {
     }
     else if (stars.size() == 1) {
         stars[0]->vx = stars[0]->vy = stars[0]->vz = 0.0f;
+    }
+    glm::vec3 com(0.0f);
+    float totalMass = 0.0f;
+
+    // Calculate total COM
+    for (auto& body : bodies) {
+        com += body.mass * glm::vec3(body.x, body.y, body.z);
+        totalMass += body.mass;
+    }
+    if (totalMass > 0.0f)
+        com /= totalMass;
+
+    // Set velocities for all bodies to orbit system COM
+    for (auto& body : bodies) {
+        float dx = body.x - com.x;
+        float dz = body.z - com.z;
+        float r = sqrt(dx * dx + dz * dz);
+
+        if (r < 1e-6f) continue;
+
+        float orbitalSpeed = sqrt(G * totalMass / r);
+        body.vx = -dz / r * orbitalSpeed;
+        body.vz = dx / r * orbitalSpeed;
     }
 }
 
@@ -796,8 +819,6 @@ int main(void) {
             }
         }
 
-        ImGui::End();
-
         if (showCreateObjectModal) {
             ImGui::OpenPopup("Create New Object");
             showCreateObjectModal = false;
@@ -846,10 +867,11 @@ int main(void) {
                     stmt->setFloat(13, rotationAngle);
                     stmt->setFloat(14, rotationSpeed);
                     stmt->executeUpdate();
-					conn->commit();
+                    conn->commit();
                     conn->terminateStatement(stmt);
 
                     bodiesVector = fetchCelestialBodies(conn, systems[selectedIndex].id);
+					initializeOrbitalVelocities(bodiesVector);
                 }
                 catch (SQLException& e) {
                     std::cerr << "Failed to add new object: " << e.getMessage() << std::endl;
@@ -863,6 +885,8 @@ int main(void) {
             }
             ImGui::EndPopup();
         }
+
+        ImGui::End();
 
         // --- Handle Selection Change ---
         if (selectedIndex != previousIndex && !systems.empty()) {
