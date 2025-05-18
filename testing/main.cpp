@@ -94,7 +94,7 @@ struct SolarSystemInfo {
 // Function to draw the gravity grid (for visualization purposes)
 void drawGravityGrid(int gridSize, float lineSpacing, vector<CelestialBody>& bodies) {
     int numLines = gridSize / lineSpacing;
-    float gravityScale = 100.f;
+    float gravityScale = 1000.f;
 
     glColor3f(0.9f, 0.9f, 0.9f);
     glBegin(GL_LINES);
@@ -268,67 +268,48 @@ void initializeOrbitalVelocities(vector<CelestialBody>& bodies) {
     // Separate stars and non-stars
     vector<CelestialBody*> stars;
     vector<CelestialBody*> planets;
-    for (size_t i = 0; i < bodies.size(); ++i) {
-        if (bodies[i].isStar)
-            stars.push_back(&bodies[i]);
-        else
-            planets.push_back(&bodies[i]);
+    for (auto& body : bodies) {
+        if (body.isStar) stars.push_back(&body);
+        else planets.push_back(&body);
+    }
+
+	// Unique case: if there's only one star, it is the COM
+    if (stars.size() == 1) {
+        CelestialBody* star = stars[0];
+
+        // Fix the star in the center
+        star->vx = star->vy = star->vz = 0.0f;
+
+        // Planets orbit around the star
+        for (auto planet : planets) {
+            float dx = planet->x - star->x;
+            float dz = planet->z - star->z;
+            float r = sqrt(dx * dx + dz * dz);
+
+            if (r < 1e-6f) continue;
+
+            float orbitalSpeed = sqrt(G * star->mass / r);
+            planet->vx = -dz / r * orbitalSpeed;
+            planet->vz = dx / r * orbitalSpeed;
+        }
+        return; // Return to avoid calculating the COM 
     }
 
     // Move these outside so they're visible to both sections
-    glm::vec3 starsCOM(0.0f);
-    float totalStarMass = 0.0f;
-
-    // Compute stars COM and total mass
-    for (auto star : stars) {
-        starsCOM += star->mass * glm::vec3(star->x, star->y, star->z);
-        totalStarMass += star->mass;
-    }
-    if (totalStarMass > 0.0f)
-        starsCOM /= totalStarMass;
-
-    // Planets orbiting the COM of the stars
-    for (auto planet : planets) {
-        float dx = planet->x - starsCOM.x;
-        float dz = planet->z - starsCOM.z;
-        float r = sqrt(dx * dx + dz * dz);
-        if (r < 1e-6f) continue;
-        float orbitalSpeed = sqrt(G * totalStarMass / r);
-        planet->vx = -dz / r * orbitalSpeed;
-        planet->vz = dx / r * orbitalSpeed;
-    }
-
-    // Stars orbiting the COM of the stars
-    if (stars.size() >= 2) {
-        for (auto star : stars) {
-            float dx = star->x - starsCOM.x;
-            float dz = star->z - starsCOM.z;
-            float r = sqrt(dx * dx + dz * dz);
-            if (r < 1e-6f) continue;
-            float effectiveMass = totalStarMass - star->mass;
-            float orbitalSpeed = sqrt(G * effectiveMass / r);
-            star->vx = -dz / r * orbitalSpeed;
-            star->vz = dx / r * orbitalSpeed;
-        }
-    }
-    else if (stars.size() == 1) {
-        stars[0]->vx = stars[0]->vy = stars[0]->vz = 0.0f;
-    }
-    glm::vec3 com(0.0f);
+    glm::vec3 systemCOM(0.0f);
     float totalMass = 0.0f;
 
-    // Calculate total COM
+    // Compute stars COM and total mass
     for (auto& body : bodies) {
-        com += body.mass * glm::vec3(body.x, body.y, body.z);
+        systemCOM += body.mass * glm::vec3(body.x, body.y, body.z);
         totalMass += body.mass;
     }
-    if (totalMass > 0.0f)
-        com /= totalMass;
+    if (totalMass > 0.0f) systemCOM /= totalMass;
 
-    // Set velocities for all bodies to orbit system COM
+    // Установка скоростей для всех тел
     for (auto& body : bodies) {
-        float dx = body.x - com.x;
-        float dz = body.z - com.z;
+        float dx = body.x - systemCOM.x;
+        float dz = body.z - systemCOM.z;
         float r = sqrt(dx * dx + dz * dz);
 
         if (r < 1e-6f) continue;
@@ -916,11 +897,22 @@ int main(void) {
         // --- Camera Centering Logic ---
         glm::vec3 focusPos;
         if (cameraFocusIndex == 0) {
-            focusPos = calculateCenterOfMass(bodiesVector);
+            if (!bodiesVector.empty()) {
+                focusPos = calculateCenterOfMass(bodiesVector);
+            }
+            else {
+				focusPos = glm::vec3(0.0f); // Default to origin if no bodies
+            }
         }
         else {
-            const auto& body = bodiesVector[cameraFocusIndex - 1];
-            focusPos = glm::vec3(body.x, body.y, body.z);
+            size_t index = cameraFocusIndex - 1;
+            if (index < bodiesVector.size()) {
+                const auto& body = bodiesVector[index];
+                focusPos = glm::vec3(body.x, body.y, body.z);
+            }
+            else {
+                focusPos = glm::vec3(0.0f);
+            }
         }
 
         // Camera spherical coordinates based on pitch/yaw
@@ -946,7 +938,7 @@ int main(void) {
         );
 
 
-        drawGravityGrid(100, 0.25f, bodiesVector);
+        drawGravityGrid(350, 0.5f, bodiesVector);
         if (simulationActive) {
             updatePositionsAndVelocities(bodiesVector, dt);
             updateRotations(bodiesVector, dt);
