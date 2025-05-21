@@ -511,7 +511,7 @@ vector<CelestialBody> fetchCelestialBodies(Connection* conn, int solarSystemID) 
         }
     }
     catch (std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+        std::cerr << "Error: std exception" << e.what() << std::endl;
         // Clean up if error occurred
         if (rs) {
             try { stmt->closeResultSet(rs); }
@@ -574,7 +574,7 @@ int main(void) {
         conn->terminateStatement(stmt);
     }
     catch (SQLException& ex) {
-        cout << "Error: " << ex.getMessage() << endl;
+        cout << "Error: SQL exception:  " << ex.getMessage() << endl;
         return -1;
     }
 
@@ -657,6 +657,7 @@ int main(void) {
             if (!systems.empty() && selectedIndex >= 0 && selectedIndex < systems.size()) {
                 bodiesVector = fetchCelestialBodies(conn, systems[selectedIndex].id);
             }
+            initializeOrbitalVelocities(bodiesVector);
         }
 
         if (ImGui::Button("New Solar System")) {
@@ -673,6 +674,36 @@ int main(void) {
             if (ImGui::Button("Add New Object")) {
                 showCreateObjectModal = true;
             }
+
+            ImGui::SameLine();
+            if (ImGui::Button("Delete system")) {
+                try {
+                    Statement* stmt = conn->createStatement();
+
+                    // First delete all celestial bodies in this system
+                    stmt->setSQL("DELETE FROM CelestialBodies WHERE SolarSystemID = :1");
+                    stmt->setInt(1, systems[selectedIndex].id);
+                    stmt->executeUpdate();
+
+                    // Then delete the solar system itself
+                    stmt->setSQL("DELETE FROM SolarSystems WHERE SolarSystemID = :1");
+                    stmt->setInt(1, systems[selectedIndex].id);
+                    stmt->executeUpdate();
+
+                    conn->commit();
+                    conn->terminateStatement(stmt);
+
+                    // Refresh systems list and reset selection
+                    systems = fetchSolarSystems(conn);
+                    selectedIndex = 0;
+                    previousIndex = -1;
+                    bodiesVector.clear();
+                }
+                catch (SQLException& e) {
+                    std::cerr << "DB error: " << e.getMessage() << std::endl;
+                }
+            }
+
         }
 
         if (!systems.empty() && creatingNewSystem) {
